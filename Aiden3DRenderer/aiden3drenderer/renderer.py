@@ -1,0 +1,182 @@
+"""
+Main 3D renderer class
+"""
+import math
+import pygame
+from pygame import QUIT
+import sys
+from .camera import Camera
+
+CUSTOM_SHAPES = {}
+
+def register_shape(name: str, key=None, is_animated: bool = False):
+    def decorator(func):
+        CUSTOM_SHAPES[name] = {
+            'function': func,
+            'is_animated': is_animated,
+            'key': key
+        }
+        return func
+    return decorator
+
+
+class Renderer3D:
+    
+    def __init__(self, width=1000, height=1000, title="Aiden 3D Renderer"):
+        pygame.init()
+        self.width = width
+        self.height = height
+        self.half_w = width // 2
+        self.half_h = height // 2
+        self.screen = pygame.display.set_mode((width, height))
+        pygame.display.set_caption(title)
+        
+        self.camera = Camera()
+        self.clock = pygame.time.Clock()
+        
+        self.current_shape = "mountain"
+        self.last_shape = None
+        self.animation_time = 0
+        self.grid_coords = None
+        self.needs_regen = False
+
+        self.is_starting = True
+        
+    def project_3d_to_2d(self, matrix, fov, camera_pos, camera_facing):
+        projected = []
+        
+        for xIdx in range(len(matrix)):
+            xList = matrix[xIdx]
+            row = []
+            for yIdx in range(len(xList)):
+                point = xList[yIdx]
+                x = point[0]
+                y = point[1]
+                z = point[2]
+
+                x -= camera_pos[0]
+                y -= camera_pos[1]
+                z -= camera_pos[2]
+
+                x1 = x * math.cos(camera_facing[1]) + z * math.sin(camera_facing[1])
+                y1 = y
+                z1 = -x * math.sin(camera_facing[1]) + z * math.cos(camera_facing[1])
+
+                x2 = x1
+                y2 = y1 * math.cos(camera_facing[0]) - z1 * math.sin(camera_facing[0])
+                z2 = y1 * math.sin(camera_facing[0]) + z1 * math.cos(camera_facing[0])
+
+                x3 = x2 * math.cos(camera_facing[2]) - y2 * math.sin(camera_facing[2])
+                y3 = x2 * math.sin(camera_facing[2]) + y2 * math.cos(camera_facing[2])
+                z3 = z2
+
+                if z3 <= 0.1:
+                    row.append(None)
+                    continue
+
+                f = 1 / math.tan(fov / 2)
+                dd_x = (x3 * f) / -z3
+                dd_y = (y3 * f) / -z3
+
+                px = dd_x * self.half_w + self.half_w
+                py = dd_y * self.half_h + self.half_h
+
+                row.append((px, py))
+            projected.append(row)
+
+        return projected
+    
+    def render_wireframe(self, matrix):
+        for xIdx in range(len(matrix)):
+            xList = matrix[xIdx]
+            for yIdx in range(len(xList)):
+                point = xList[yIdx]
+                if point is not None:
+                    points = []
+
+                    try:
+                        if xIdx < len(matrix) - 1 and matrix[xIdx+1][yIdx] is not None:
+                            points.append(matrix[xIdx+1][yIdx])
+                        if yIdx < len(xList) - 1 and matrix[xIdx][yIdx+1] is not None:
+                            points.append(matrix[xIdx][yIdx+1])
+                    except IndexError:
+                        continue
+
+                    for p in points:
+                        pygame.draw.line(self.screen, (0, 0, 0), point, p, 2)
+    
+    def generate_shape(self, shape_name, time=0):
+        if shape_name in CUSTOM_SHAPES:
+            shape_info = CUSTOM_SHAPES[shape_name]
+            func = shape_info['function']
+            
+            if shape_info['is_animated']:
+                return func(time=time), True
+            else:
+                return func(), False
+        
+        return None, False
+    
+    def generate_shape_from_key_press(self, pressedKeys, time=0):
+        for shape, value in CUSTOM_SHAPES.items():
+            key = value['key']
+            if pressedKeys[key]:
+                self.grid_coords, self.needs_regen = self.generate_shape(
+                    shape, 
+                    self.animation_time,
+                )
+                self.current_shape = shape
+                return
+        
+        if self.needs_regen or self.is_starting:
+            self.grid_coords, self.needs_regen = self.generate_shape(
+                        self.current_shape, 
+                        self.animation_time,
+                )
+            
+            self.is_starting = False
+
+    def run(self):
+        running = True
+        
+        while running:
+            self.screen.fill((255, 255, 255))
+            self.clock.tick(60)
+            self.animation_time += 0.01
+            
+            # Handle events
+            for event in pygame.event.get():
+                if event.type == QUIT:
+                    running = False
+                    
+                self.camera.handle_mouse_events(event)
+            
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_ESCAPE]:
+                running = False
+            
+            self.camera.update(keys)
+            
+            self.generate_shape_from_key_press(keys, self.animation_time)
+            
+            if self.grid_coords:
+                projected = self.project_3d_to_2d(
+                    self.grid_coords,
+                    math.radians(100),
+                    tuple(self.camera.position),
+                    tuple(self.camera.rotation)
+                )
+                self.render_wireframe(projected)
+            
+            pygame.display.update()
+        
+        pygame.quit()
+
+
+def main():
+    renderer = Renderer3D()
+    renderer.run()
+
+
+if __name__ == "__main__":
+    main()
