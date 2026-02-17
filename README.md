@@ -1,7 +1,5 @@
 # Grid Topology Renderer
 
-A 3D wireframe renderer built from scratch using Pygame, featuring procedurally generated terrains and mathematical surfaces.
-
 ## Features
 
 - **Custom 3D projection** - Perspective projection without using external 3D libraries
@@ -9,6 +7,30 @@ A 3D wireframe renderer built from scratch using Pygame, featuring procedurally 
 - **15+ procedural generators** - Mountains, cities, fractals, and mathematical surfaces
 - **Real-time rendering** - 60 FPS wireframe rendering
 - **Animated terrains** - Several terrains feature time-based animations
+
+## Gallery
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="media/RenderShowcase.gif" alt="Ripple Animation" width="400"/>
+        <br/>
+        <b>Ripple Effect</b>
+        <br/>
+        <i>Expanding waves from center</i>
+      </td>
+      <td align="center">
+        <img src="media/plateau_thing.png" alt="Mandelbulb Fractal" width="400"/>
+        <br/>
+        <b>Mandelbulb Slice</b>
+        <br/>
+        <i>3D fractal cross-section</i>
+      </td>
+    </tr>
+  </table>
+</div>
+
 
 ## Requirements
 
