@@ -143,7 +143,8 @@ from aiden3drenderer import Renderer3D, register_shape
 import pygame
 
 # Register a custom shape with a decorator
-@register_shape("My Plane", key=pygame.K_p, is_animated=False)
+# @register_shape("My Plane", key=pygame.K_p, is_animated=False) would have default purple colors
+@register_shape("My Plane", key=pygame.K_p, is_animated=False, color=(200, 255, 150))
 def generate_pyramid(grid_size=40, frame=0):
   """Generate a simple plane."""
   matrix = [
@@ -413,6 +414,7 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 Free to use and modify.
+
 
 
 
