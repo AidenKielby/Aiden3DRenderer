@@ -7,11 +7,11 @@ setup(
     name="aiden3drenderer",
     version="0.1.0",
     author="Aiden",
-    author_email="your.email@example.com",
+    author_email="headstone.yt@gmail.com",
     description="A lightweight 3D wireframe renderer built from scratch using Pygame",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/Aiden3DRenderer",
+    url="https://github.com/AidenKielby/3D-mesh-Renderer",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 3 - Alpha",
@@ -36,4 +36,5 @@ setup(
         ],
     },
     include_package_data=True,
+
 )
