@@ -60,6 +60,28 @@ renderer.run()
 
 ### Creating Custom Shapes
 
+#### Simple Shapes
+```python
+from aiden3drenderer import Renderer3D, register_shape
+import pygame
+
+# Register a custom shape with a decorator
+@register_shape("My Pyramid", key=pygame.K_p, is_animated=False)
+def generate_pyramid(grid_size=40, frame=0):
+    """Generate a simple plane."""
+    matrix = [
+      [(1,1,1), (2,1,1), (3,1,1)],
+      [(1,1,2), (2,1,2), (3,1,2)],
+      [(1,1,3), (2,1,3), (3,1,3)]
+]
+    return matrix
+
+# Run the renderer (your shape will be available on 'P' key)
+renderer = Renderer3D()
+renderer.run()
+```
+
+#### Complex Shapes
 ```python
 from aiden3drenderer import Renderer3D, register_shape
 import pygame
@@ -314,5 +336,6 @@ Created by Aiden. Procedural generation functions created with AI assistance. Al
 ## License
 
 Free to use and modify.
+
 
 
