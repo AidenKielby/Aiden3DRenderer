@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: aiden3drenderer
-Version: 0.1.3
+Version: 0.1.4
 Summary: A lightweight 3D wireframe renderer built from scratch using Pygame
 Home-page: https://github.com/AidenKielby/3D-mesh-Renderer
 Author: Aiden

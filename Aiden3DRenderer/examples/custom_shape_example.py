@@ -8,6 +8,16 @@ import pygame
 from aiden3drenderer import Renderer3D, register_shape
 
 
+@register_shape("My Plane", key=pygame.K_p, is_animated=False)
+def generate_pyramid(grid_size=40, frame=0):
+  """Generate a simple plane."""
+  matrix = [
+    [(1,1,1), (2,1,1), (3,1,1)],
+    [(1,1,2), (2,1,2), (3,1,2)],
+    [(1,1,3), (2,1,3), (3,1,3)]
+]
+  return matrix
+
 # Create a custom animated wave shape
 @register_shape("my_custom_wave", pygame.K_c, is_animated=True)
 def my_wave(size=30, time=0):
@@ -83,12 +93,15 @@ def generate_vortex(grid_size=40, time=0):
 
     return grid
 
+
+
+
 def main():
     # Create renderer
     renderer = Renderer3D(title="Custom Shapes Demo")
     
     # Start with our custom wave
-    renderer.current_shape = "my_custom_wave"
+    renderer.current_shape = "My Plane"
     
     print("Controls:")
     print("1-9, 0: Built-in shapes")
@@ -98,6 +111,8 @@ def main():
     print("WASD: Move, Space/Shift: Up/Down")
     print("Right mouse drag: Look around")
     
+    renderer.is_mesh = False
+
     # Run
     renderer.run()
 

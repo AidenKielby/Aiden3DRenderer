@@ -3,8 +3,32 @@ Basic usage example for Aiden3DRenderer
 
 This demonstrates the simplest way to use the renderer.
 """
-from aiden3drenderer import Renderer3D
+from aiden3drenderer import Renderer3D, register_shape
+import pygame
+import math
 
+@register_shape("flower", pygame.K_1, is_animated=False)
+def flower(resolution=30):
+    """Flower-shaped 3D surface"""
+    grid = []
+    
+    for u_idx in range(resolution):
+        row = []
+        for v_idx in range(resolution):
+            u = (u_idx / resolution) * 2 * math.pi
+            v = (v_idx / resolution) * math.pi - math.pi / 2
+            
+            # Flower petal equations
+            r = 2 + math.sin(5 * u)  # 5 petals
+            
+            x = r * math.cos(v) * math.cos(u)
+            y = r * math.cos(v) * math.sin(u)
+            z = r * math.sin(v)
+            
+            row.append((x * 5 + 15, z * 5 + 10, y * 5 + 15))
+        grid.append(row)
+    
+    return grid
 
 def main():
     # Create the renderer
