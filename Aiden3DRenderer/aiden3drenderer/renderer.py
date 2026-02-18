@@ -41,6 +41,8 @@ class Renderer3D:
         self.needs_regen = False
 
         self.is_starting = True
+
+        self.is_mesh = True
         
     def project_3d_to_2d(self, matrix, fov, camera_pos, camera_facing):
         projected = []
@@ -80,30 +82,65 @@ class Renderer3D:
 
                 px = dd_x * self.half_w + self.half_w
                 py = dd_y * self.half_h + self.half_h
-
-                row.append((px, py))
+                
+                if self.is_mesh:
+                    row.append((px, py))
+                else:
+                    row.append((px, py, z3))
             projected.append(row)
 
         return projected
     
     def render_wireframe(self, matrix):
-        for xIdx in range(len(matrix)):
-            xList = matrix[xIdx]
-            for yIdx in range(len(xList)):
-                point = xList[yIdx]
-                if point is not None:
-                    points = []
+        if self.is_mesh:
+            for xIdx in range(len(matrix)):
+                xList = matrix[xIdx]
+                for yIdx in range(len(xList)):
+                    point = xList[yIdx]
+                    if point is not None:
+                        points = []
 
-                    try:
-                        if xIdx < len(matrix) - 1 and matrix[xIdx+1][yIdx] is not None:
-                            points.append(matrix[xIdx+1][yIdx])
-                        if yIdx < len(xList) - 1 and matrix[xIdx][yIdx+1] is not None:
-                            points.append(matrix[xIdx][yIdx+1])
-                    except IndexError:
-                        continue
+                        try:
+                            if xIdx < len(matrix) - 1 and matrix[xIdx+1][yIdx] is not None:
+                                points.append(matrix[xIdx+1][yIdx])
+                            if yIdx < len(xList) - 1 and matrix[xIdx][yIdx+1] is not None:
+                                points.append(matrix[xIdx][yIdx+1])
+                        except IndexError:
+                            continue
 
-                    for p in points:
-                        pygame.draw.line(self.screen, (0, 0, 0), point, p, 2)
+                        for p in points:
+                            pygame.draw.line(self.screen, (0, 0, 0), point, p, 2)
+        else:
+            tris = []
+            for xIdx in range(len(matrix)):
+                xList = matrix[xIdx]
+                for yIdx in range(len(xList)):
+                    point = xList[yIdx]
+                    if point is not None:
+
+                        if xIdx < len(matrix) - 1 and yIdx < len(xList) - 1:
+                            p1 = matrix[xIdx][yIdx + 1]
+                            p2 = matrix[xIdx + 1][yIdx]
+                            if p1 is not None and p2 is not None:
+                                #pygame.draw.polygon(screen, (150, 0, 150), [point, p1, p2], 0)
+                                d1 = (point[2] + p1[2] + p2[2]) / 3 if len(point) > 2 else 0
+                                tris.append((d1, (point, p1, p2), (150, 0, 150)))
+
+                        if xIdx > 0 and yIdx > 0:
+                            p1 = matrix[xIdx][yIdx - 1]
+                            p2 = matrix[xIdx - 1][yIdx]
+                            if p1 is not None and p2 is not None:
+                                #pygame.draw.polygon(screen, (50, 0, 50), [point, p1, p2], 0)
+                                d1 = (point[2] + p1[2] + p2[2]) / 3 if len(point) > 2 else 0
+                                tris.append((d1, (point, p1, p2), ((50, 0, 50))))
+            tris.sort(key=lambda t: t[0], reverse=True)
+            for _, tri, col in tris:
+                pygame.draw.polygon(
+                    self.screen,
+                    col,
+                    [(tri[0][0], tri[0][1]), (tri[1][0], tri[1][1]), (tri[2][0], tri[2][1])],
+                    0,
+                )
     
     def generate_shape(self, shape_name, time=0):
         if shape_name in CUSTOM_SHAPES:
