@@ -5,6 +5,7 @@ import math
 import pygame
 from pygame import QUIT
 import sys
+
 from .camera import Camera
 
 CUSTOM_SHAPES = {}
@@ -39,10 +40,13 @@ class Renderer3D:
         self.animation_time = 0
         self.grid_coords = None
         self.needs_regen = False
+        self.shapes = ["mountain"]
 
         self.is_starting = True
 
         self.is_mesh = True
+        self.triangle_color_1= (150, 0, 150)
+        self.triangle_color_2 = (50, 0, 50)
         
     def project_3d_to_2d(self, matrix, fov, camera_pos, camera_facing):
         projected = []
@@ -52,6 +56,7 @@ class Renderer3D:
             row = []
             for yIdx in range(len(xList)):
                 point = xList[yIdx]
+                #print(point)
                 x = point[0]
                 y = point[1]
                 z = point[2]
@@ -124,7 +129,7 @@ class Renderer3D:
                             if p1 is not None and p2 is not None:
                                 #pygame.draw.polygon(screen, (150, 0, 150), [point, p1, p2], 0)
                                 d1 = (point[2] + p1[2] + p2[2]) / 3 if len(point) > 2 else 0
-                                tris.append((d1, (point, p1, p2), (150, 0, 150)))
+                                tris.append((d1, (point, p1, p2), self.triangle_color_1))
 
                         if xIdx > 0 and yIdx > 0:
                             p1 = matrix[xIdx][yIdx - 1]
@@ -132,7 +137,7 @@ class Renderer3D:
                             if p1 is not None and p2 is not None:
                                 #pygame.draw.polygon(screen, (50, 0, 50), [point, p1, p2], 0)
                                 d1 = (point[2] + p1[2] + p2[2]) / 3 if len(point) > 2 else 0
-                                tris.append((d1, (point, p1, p2), ((50, 0, 50))))
+                                tris.append((d1, (point, p1, p2), self.triangle_color_2))
             tris.sort(key=lambda t: t[0], reverse=True)
             for _, tri, col in tris:
                 pygame.draw.polygon(
@@ -155,23 +160,21 @@ class Renderer3D:
         return None, False
     
     def generate_shape_from_key_press(self, pressedKeys, time=0):
+        shapesList = []
         for shape, value in CUSTOM_SHAPES.items():
             key = value['key']
             if pressedKeys[key]:
-                self.grid_coords, self.needs_regen = self.generate_shape(
-                    shape, 
-                    self.animation_time,
-                )
-                self.current_shape = shape
-                return
+                shapesList.append(shape)
         
-        if self.needs_regen or self.is_starting:
+        if len(shapesList) >= 1:
+            self.shapes = shapesList
+        """if self.needs_regen or self.is_starting:
             self.grid_coords, self.needs_regen = self.generate_shape(
                         self.current_shape, 
                         self.animation_time,
                 )
             
-            self.is_starting = False
+            self.is_starting = False"""
 
     def run(self):
         running = True
@@ -195,15 +198,22 @@ class Renderer3D:
             self.camera.update(keys)
             
             self.generate_shape_from_key_press(keys, self.animation_time)
-            
-            if self.grid_coords:
-                projected = self.project_3d_to_2d(
-                    self.grid_coords,
-                    math.radians(100),
-                    tuple(self.camera.position),
-                    tuple(self.camera.rotation)
-                )
-                self.render_wireframe(projected)
+
+            for i in range(len(self.shapes)):
+                shape_name = self.shapes[i]
+                #print(shape_name)
+                self.grid_coords = self.generate_shape(shape_name, self.animation_time)
+
+                #print(self.grid_coords)
+
+                if self.grid_coords:
+                    projected = self.project_3d_to_2d(
+                        self.grid_coords[0],
+                        math.radians(100),
+                        tuple(self.camera.position),
+                        tuple(self.camera.rotation)
+                    )
+                    self.render_wireframe(projected)
             
             pygame.display.update()
         
