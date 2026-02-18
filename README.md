@@ -291,8 +291,8 @@ Points behind the camera (z ≤ 0.1) are set to `None` to prevent rendering arti
 ## Performance
 
 - **60 FPS** stable on most terrains
-- **Megacity** (6400 vertices) - Largest terrain, still maintains 60 FPS
-- Wireframe rendering only - no filled polygons for performance
+- **Megacity** (6400 vertices) - Largest terrain, still maintains 60 FPS (wireframe mesh only)
+- Wireframe rendering and filled polygons from triangle partitions
 
 ## API Reference
 
@@ -387,6 +387,7 @@ Created by Aiden. Procedural generation functions created with AI assistance. Al
 ## License
 
 Free to use and modify.
+
 
 
 
