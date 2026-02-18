@@ -209,6 +209,38 @@ class Renderer3D:
         
         pygame.quit()
 
+    def loopable_run(self):
+        self.screen.fill((255, 255, 255))
+        self.clock.tick(60)
+        self.animation_time += 0.01
+        
+        # Handle events
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                pygame.quit()
+                
+            self.camera.handle_mouse_events(event)
+        
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_ESCAPE]:
+            pygame.quit()
+        
+        self.camera.update(keys)
+        
+        self.generate_shape_from_key_press(keys, self.animation_time)
+        
+        if self.grid_coords:
+            projected = self.project_3d_to_2d(
+                self.grid_coords,
+                math.radians(100),
+                tuple(self.camera.position),
+                tuple(self.camera.rotation)
+            )
+            self.render_wireframe(projected)
+        
+        pygame.display.update()
+        
+
 
 def main():
     renderer = Renderer3D()
