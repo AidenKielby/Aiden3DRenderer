@@ -110,7 +110,14 @@ while True:
     renderer.loopable_run()
 ```
 
+
 ### Creating Custom Shapes
+
+To create custom shapes compatible with this 3D mesh renderer, you must write Python functions decorated with `@register_shape`, each returning a "vertex matrix"—a list of rows, where each row is a list of 3D coordinate tuples (x, y, z). Each row represents a contiguous horizontal strip of points on your 3D shape, stacked along the "y" (vertical) dimension. All rows in the matrix must have the **same number of points** (columns); do not generate jagged matrices or append rows of different lengths, as the renderer expects a perfect rectangle to traverse for drawing wireframes and faces.
+
+Points are usually arranged such that `matrix[row][col]` gives the (x, y, z) of the point at column `col` in row `row`. Loops that fill your matrix should ensure that each sub-list (row) is always the full width—pad with `None` or duplicate valid coordinates if needed, but empty or missing values will cause indexing errors. Avoid using polar or arbitrary arrangements for each row: either fill every cell with an (x, y, z) tuple, or, if the shape doesn't naturally fit a rectangle (e.g., cones/canopies), pad shorter rows to the full length to maintain a perfect rectangle.
+
+Your function should accept at least the two arguments `grid_size` (which determines the overall scale and discretization) and `frame` (for animation support; ignored if not animating), and always return the correctly-sized 2D matrix ready for rendering. If any row in your matrix is shorter than the others, or you index cells that do not exist, you will get `IndexError: list index out of range`. Review your logic to ensure each row always contains the expected number of vertices, and debug with simple cubes or grids first to be confident in your shape's layout.
 
 #### Simple Shapes
 ```python
@@ -120,13 +127,13 @@ import pygame
 # Register a custom shape with a decorator
 @register_shape("My Plane", key=pygame.K_p, is_animated=False)
 def generate_pyramid(grid_size=40, frame=0):
-    """Generate a simple plane."""
-    matrix = [
-      [(1,1,1), (2,1,1), (3,1,1)],
-      [(1,1,2), (2,1,2), (3,1,2)],
-      [(1,1,3), (2,1,3), (3,1,3)]
+  """Generate a simple plane."""
+  matrix = [
+    [(1,1,1), (2,1,1), (3,1,1)],
+    [(1,1,2), (2,1,2), (3,1,2)],
+    [(1,1,3), (2,1,3), (3,1,3)]
 ]
-    return matrix
+  return matrix
 
 # Run the renderer (your shape will be available on 'P' key)
 renderer = Renderer3D()
@@ -141,24 +148,24 @@ import pygame
 # Register a custom shape with a decorator
 @register_shape("My Pyramid", key=pygame.K_p, is_animated=False)
 def generate_pyramid(grid_size=40, frame=0):
-    """Generate a simple pyramid."""
-    matrix = []
-    center = grid_size / 2
+  """Generate a simple pyramid."""
+  matrix = []
+  center = grid_size / 2
     
-    for x in range(grid_size):
-        row = []
-        for y in range(grid_size):
-            # Distance from center
-            dx = abs(x - center)
-            dy = abs(y - center)
-            max_dist = max(dx, dy)
+  for x in range(grid_size):
+    row = []
+    for y in range(grid_size):
+      # Distance from center
+      dx = abs(x - center)
+      dy = abs(y - center)
+      max_dist = max(dx, dy)
             
-            # Height decreases with distance
-            height = max(0, 10 - max_dist)
-            row.append(height)
-        matrix.append(row)
+      # Height decreases with distance
+      height = max(0, 10 - max_dist)
+      row.append(height)
+    matrix.append(row)
     
-    return matrix
+  return matrix
 
 # Run the renderer (your shape will be available on 'P' key)
 renderer = Renderer3D()
@@ -388,9 +395,3 @@ Created by Aiden. Procedural generation functions created with AI assistance (th
 ## License
 
 Free to use and modify.
-
-
-
-
-
-
