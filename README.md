@@ -31,6 +31,22 @@ A lightweight 3D wireframe renderer built with Pygame featuring custom projectio
         <i>3D fractal cross-section</i>
       </td>
     </tr>
+    <tr>
+      <td align="center">
+        <img src="media/Spiral.gif" alt="Turning Spiral" width="400"/>
+        <br/>
+        <b>Turning Spiral</b>
+        <br/>
+        <i>Screw like shape spinning</i>
+      </td>
+      <td align="center">
+        <img src="media/City.png" alt="Simple City (laggy when solid render)" width="400"/>
+        <br/>
+        <b>Simple City (laggy when solid render)</b>
+        <br/>
+        <i>City preset in solid render</i>
+      </td>
+    </tr>
   </table>
 </div>
 
@@ -51,37 +67,11 @@ from aiden3drenderer import Renderer3D
 
 # Create and run the renderer with all built-in shapes
 renderer = Renderer3D()
-renderer.camera.position = [0, 0 ,0]
-
-# (renderer.is_mesh) True = render as mesh, False = render as solid shape
-renderer.is_mesh = True 
 renderer.run()
 ```
 
 ### Creating Custom Shapes
 
-#### Simple Shapes
-```python
-from aiden3drenderer import Renderer3D, register_shape
-import pygame
-
-# Register a custom shape with a decorator
-@register_shape("My Pyramid", key=pygame.K_p, is_animated=False)
-def generate_pyramid(grid_size=40, frame=0):
-    """Generate a simple plane."""
-    matrix = [
-      [(1,1,1), (2,1,1), (3,1,1)],
-      [(1,1,2), (2,1,2), (3,1,2)],
-      [(1,1,3), (2,1,3), (3,1,3)]
-]
-    return matrix
-
-# Run the renderer (your shape will be available on 'P' key)
-renderer = Renderer3D()
-renderer.run()
-```
-
-#### Complex Shapes
 ```python
 from aiden3drenderer import Renderer3D, register_shape
 import pygame
@@ -336,6 +326,3 @@ Created by Aiden. Procedural generation functions created with AI assistance. Al
 ## License
 
 Free to use and modify.
-
-
-
