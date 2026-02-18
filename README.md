@@ -47,6 +47,21 @@ A lightweight 3D wireframe renderer built with Pygame featuring custom projectio
         <br/>
         <i>City preset in solid render</i>
       </td>
+      <tr>
+      <td align="center">
+        <img src="media/DualObjMesh.png" alt="Tree Mesh" width="400"/>
+        <br/>
+        <b>Tree Mesh</b>
+        <br/>
+        <i>Tree render from tree_example.py in examples</i>
+      </td>
+      <td align="center">
+        <img src="media/DualObjFull.png" alt="Tree Solid Render" width="400"/>
+        <br/>
+        <b>Tree Solid Render</b>
+        <br/>
+        <i>Tree render from tree_example.py in examples</i>
+      </td>
     </tr>
   </table>
 </div>
@@ -398,4 +413,5 @@ Created by Aiden. Procedural generation functions created with AI assistance (th
 ## License
 
 Free to use and modify.
+
 
