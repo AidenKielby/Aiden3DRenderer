@@ -57,6 +57,7 @@ pip install aiden3drenderer
 ```
 
 Requires Python 3.11+ and automatically installs Pygame 2.6.0+
+(only tested with Python 3.11)
 
 ## Quick Start
 
@@ -387,6 +388,7 @@ Created by Aiden. Procedural generation functions created with AI assistance (th
 ## License
 
 Free to use and modify.
+
 
 
 
