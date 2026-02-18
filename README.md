@@ -88,6 +88,27 @@ while True:
     renderer.loopable_run()
 ```
 
+### Looped Run Usage Example
+```python
+from aiden3drenderer import Renderer3D
+
+# Create and run the renderer with all built-in shapes
+# Simple gravity with set floor height
+renderer = Renderer3D()
+renderer.camera.position = [0, 0 ,0]
+renderer.is_mesh = False
+gravity = 0.05
+floor_height = 0.1
+camera_height = 2
+
+while True:
+    if renderer.camera.position[1] <= floor_height + camera_height:
+        renderer.camera.position[1] = floor_height + camera_height
+    else:
+        renderer.camera.position[1] -= gravity
+    renderer.loopable_run()
+```
+
 ### Creating Custom Shapes
 
 #### Simple Shapes
@@ -366,5 +387,6 @@ Created by Aiden. Procedural generation functions created with AI assistance. Al
 ## License
 
 Free to use and modify.
+
 
 
