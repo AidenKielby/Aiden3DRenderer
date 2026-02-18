@@ -1,4 +1,6 @@
-# Grid Topology Renderer
+# Aiden3DRenderer
+
+A lightweight 3D wireframe renderer built with Pygame featuring custom projection, first-person camera controls, and 15+ procedural terrain generators.
 
 ## Features
 
@@ -7,6 +9,7 @@
 - **15+ procedural generators** - Mountains, cities, fractals, and mathematical surfaces
 - **Real-time rendering** - 60 FPS wireframe rendering
 - **Animated terrains** - Several terrains feature time-based animations
+- **Extensible API** - Easy to create and register custom shapes with decorators
 
 ## Gallery
 
@@ -31,14 +34,58 @@
   </table>
 </div>
 
-
-## Requirements
+## Installation
 
 ```bash
-pip install pygame
+pip install aiden3drenderer
 ```
 
-Tested with Python 3.11.9 and Pygame 2.6.1
+Requires Python 3.11+ and automatically installs Pygame 2.6.0+
+
+## Quick Start
+
+### Running the Demo
+
+```python
+from aiden3drenderer import Renderer3D
+
+# Create and run the renderer with all built-in shapes
+renderer = Renderer3D()
+renderer.run()
+```
+
+### Creating Custom Shapes
+
+```python
+from aiden3drenderer import Renderer3D, register_shape
+import pygame
+
+# Register a custom shape with a decorator
+@register_shape("My Pyramid", key=pygame.K_p, is_animated=False)
+def generate_pyramid(grid_size=40, frame=0):
+    """Generate a simple pyramid."""
+    matrix = []
+    center = grid_size / 2
+    
+    for x in range(grid_size):
+        row = []
+        for y in range(grid_size):
+            # Distance from center
+            dx = abs(x - center)
+            dy = abs(y - center)
+            max_dist = max(dx, dy)
+            
+            # Height decreases with distance
+            height = max(0, 10 - max_dist)
+            row.append(height)
+        matrix.append(row)
+    
+    return matrix
+
+# Run the renderer (your shape will be available on 'P' key)
+renderer = Renderer3D()
+renderer.run()
+```
 
 ## Controls
 
@@ -170,16 +217,95 @@ Points behind the camera (z ≤ 0.1) are set to `None` to prevent rendering arti
 - **Megacity** (6400 vertices) - Largest terrain, still maintains 60 FPS
 - Wireframe rendering only - no filled polygons for performance
 
-## Code Structure
+## API Reference
 
-- **Generation functions** (`generate_*`) - Procedural terrain generators
-- **ddd_to_dd()** - 3D to 2D projection with camera transformations
-- **render()** - Draw wireframe connections between grid points
-- **Main loop** - Event handling, camera updates, frame rendering
+### Renderer3D
+
+Main renderer class that handles the 3D projection and rendering loop.
+
+```python
+from aiden3drenderer import Renderer3D
+
+renderer = Renderer3D(
+    width=1200,      # Window width in pixels
+    height=800,      # Window height in pixels
+    fov=800          # Field of view (higher = less perspective)
+)
+renderer.run()
+```
+
+### Camera
+
+Camera class for position and rotation control (automatically created by Renderer3D).
+
+```python
+from aiden3drenderer import Camera
+
+# Access camera through renderer
+renderer = Renderer3D()
+camera = renderer.cam
+
+# Camera attributes
+camera.pos          # [x, y, z] position
+camera.facing       # [yaw, pitch, roll] in radians
+camera.speed        # Movement speed (default: 0.5)
+```
+
+### register_shape Decorator
+
+Register custom shape generators that appear in the renderer.
+
+```python
+@register_shape(name, key=None, is_animated=False)
+def generate_function(grid_size=40, frame=0):
+    """
+    Args:
+        name (str): Display name for the shape
+        key (pygame.K_*): Keyboard key to trigger shape (optional)
+        is_animated (bool): Whether shape changes over time
+        
+    Returns:
+        list[list[float]]: grid_size x grid_size matrix of heights
+    """
+    return matrix
+```
+
+## Package Structure
+
+```
+aiden3drenderer/
+├── __init__.py          # Package exports
+├── renderer.py          # Renderer3D class and projection
+├── camera.py            # Camera class for movement/rotation
+└── shapes.py            # 15+ built-in shape generators
+
+examples/
+├── basic_usage.py       # Simple demo
+└── custom_shape_example.py  # Custom shape tutorial
+```
+
+## Development
+
+### Running from Source
+
+```bash
+git clone https://github.com/yourusername/aiden3drenderer.git
+cd aiden3drenderer
+pip install -e .
+python examples/basic_usage.py
+```
+
+### Building the Package
+
+```bash
+pip install build twine
+python -m build
+python -m twine upload dist/*
+```
 
 ## Credits
 
-Procedural generation functions created with AI assistance. All rendering, projection, and camera code written manually.
+Created by Aiden. Procedural generation functions created with AI assistance. All rendering, projection, and camera code written manually.
 
 ## License
 
