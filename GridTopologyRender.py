@@ -1,4 +1,3 @@
-from librosa import ex
 import pygame
 from pygame import QUIT
 import sys
@@ -12,12 +11,25 @@ HEIGHT = 1000
 HALF_W = WIDTH // 2
 HALF_H = HEIGHT // 2
 
+CUSTOM_SHAPES = {}
+
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
 #pygame.event.set_grab(True) 
 #pygame.mouse.set_visible(False)
 
+# made by me
+def register_shape(name: str, is_animated: bool):
+    def decorator(func):
+        CUSTOM_SHAPES[name] = {
+            'function': func,
+            'is_animated': is_animated
+        }
+        return func
+    return decorator
+
 # Terrain generation functions (these are the only things made by AI)
+@register_shape("mountain", is_animated=False)
 def generate_mountain(grid_size=20):
     """Generate a mountain terrain"""
     gridCoords = []
@@ -39,6 +51,7 @@ def generate_mountain(grid_size=20):
         gridCoords.append(row)
     return gridCoords
 
+@register_shape("waves", is_animated=True)
 def generate_waves(grid_size=30, time=0):
     """Generate animated sine wave terrain"""
     gridCoords = []
@@ -54,6 +67,7 @@ def generate_waves(grid_size=30, time=0):
         gridCoords.append(row)
     return gridCoords
 
+@register_shape("ripple", is_animated=True)
 def generate_ripple(grid_size=25, time=0):
     """Generate ripple effect from center"""
     gridCoords = []
@@ -70,6 +84,7 @@ def generate_ripple(grid_size=25, time=0):
         gridCoords.append(row)
     return gridCoords
 
+@register_shape("canyon", is_animated=False)
 def generate_canyon(grid_size=30):
     """Generate a canyon/valley terrain"""
     gridCoords = []
@@ -90,47 +105,7 @@ def generate_canyon(grid_size=30):
         gridCoords.append(row)
     return gridCoords
 
-def generate_pyramid(grid_size=15):
-    """Generate a stepped pyramid"""
-    gridCoords = []
-    center = grid_size / 2
-    
-    for x in range(grid_size):
-        row = []
-        for z in range(grid_size):
-            # Distance from center (chebyshev distance for square pyramid)
-            dist = max(abs(x - center), abs(z - center))
-            
-            # Step height based on distance
-            y = max(0, (grid_size / 2) - dist)
-            
-            row.append((x, y, z))
-        gridCoords.append(row)
-    return gridCoords
-
-def generate_spiral(grid_size=25, time=0):
-    """Generate a spiral shape"""
-    gridCoords = []
-    center_x = grid_size / 2
-    center_z = grid_size / 2
-    
-    for x in range(grid_size):
-        row = []
-        for z in range(grid_size):
-            dx = x - center_x
-            dz = z - center_z
-            
-            # Convert to polar coordinates
-            angle = math.atan2(dz, dx)
-            dist = math.sqrt(dx**2 + dz**2)
-            
-            # Spiral formula
-            y = math.sin(angle * 3 + dist * 0.5 + time) * 3
-            
-            row.append((x, y, z))
-        gridCoords.append(row)
-    return gridCoords
-
+@register_shape("torus", is_animated=False)
 def generate_torus(resolution=30):
     """Generate a 3D torus (donut shape)"""
     gridCoords = []
@@ -151,45 +126,9 @@ def generate_torus(resolution=30):
         gridCoords.append(row)
     return gridCoords
 
-def generate_sphere(resolution=20):
-    """Generate a sphere"""
-    gridCoords = []
-    radius = 5
-    
-    for theta_idx in range(resolution):
-        row = []
-        for phi_idx in range(resolution):
-            theta = (theta_idx / resolution) * math.pi
-            phi = (phi_idx / resolution) * 2 * math.pi
-            
-            x = radius * math.sin(theta) * math.cos(phi)
-            y = radius * math.cos(theta)
-            z = radius * math.sin(theta) * math.sin(phi)
-            
-            row.append((x + 10, y + 5, z + 10))
-        gridCoords.append(row)
-    return gridCoords
 
-def generate_mobius_strip(resolution=30):
-    """Generate a Möbius strip"""
-    gridCoords = []
-    
-    for u_idx in range(resolution):
-        row = []
-        for v_idx in range(resolution):
-            u = (u_idx / resolution) * 2 * math.pi
-            v = (v_idx / resolution - 0.5) * 2  # -1 to 1
-            
-            # Möbius strip parametric equations
-            x = (2 + v * math.cos(u / 2)) * math.cos(u)
-            y = v * math.sin(u / 2)
-            z = (2 + v * math.cos(u / 2)) * math.sin(u)
-            
-            row.append((x + 15, y + 5, z + 15))
-        gridCoords.append(row)
-    return gridCoords
-
-def generate_megacity(grid_size=80):
+@register_shape("megacity", is_animated=False)
+def generate_megacity(grid_size=40):
     """Generate a massive futuristic city with procedural buildings"""
     gridCoords = []
     random.seed(42)  # Consistent generation
@@ -236,49 +175,7 @@ def generate_megacity(grid_size=80):
     random.seed()  # Reset random seed
     return gridCoords
 
-def generate_alien_landscape(grid_size=60, time=0):
-    """Generate an otherworldly alien landscape with multiple features"""
-    gridCoords = []
-    
-    for x in range(grid_size):
-        row = []
-        for z in range(grid_size):
-            # Multiple overlapping features
-            center_x = grid_size / 2
-            center_z = grid_size / 2
-            
-            # Feature 1: Large crater
-            crater_dist = math.sqrt((x - center_x)**2 + (z - center_z)**2)
-            crater = 0
-            if crater_dist < 20:
-                crater = -(crater_dist - 20)**2 / 40 + 10
-            
-            # Feature 2: Crystalline spikes
-            spike_pattern = abs(math.sin(x * 0.8) * math.cos(z * 0.8))
-            spikes = spike_pattern ** 3 * 15
-            
-            # Feature 3: Rolling hills
-            hills = math.sin(x * 0.3) * 3 + math.cos(z * 0.4) * 2.5
-            
-            # Feature 4: Alien vegetation (thin tall structures)
-            veg_noise = (math.sin(x * 2.3 + z * 1.7) + 1) / 2
-            if veg_noise > 0.85:
-                vegetation = (veg_noise - 0.85) * 40
-            else:
-                vegetation = 0
-            
-            # Feature 5: Pulsating energy field
-            pulse_dist = math.sqrt((x - center_x + 15)**2 + (z - center_z + 15)**2)
-            pulse = math.sin(pulse_dist * 0.5 - time * 2) * 2 * math.exp(-pulse_dist / 20)
-            
-            # Combine all features
-            y = crater + spikes * 0.3 + hills + vegetation + pulse
-            
-            row.append((x, y, z))
-        gridCoords.append(row)
-    
-    return gridCoords
-
+@register_shape("helix", is_animated=True)
 def generate_double_helix(length=60, time=0):
     """Generate a DNA-like double helix structure"""
     gridCoords = []
@@ -311,6 +208,7 @@ def generate_double_helix(length=60, time=0):
     
     return gridCoords
 
+@register_shape("mandelbulb", is_animated=False)
 def generate_mandelbulb_slice(resolution=50, z_slice=0, max_iterations=10):
     """Generate a 2D slice of a 3D Mandelbulb fractal"""
     gridCoords = []
@@ -351,6 +249,7 @@ def generate_mandelbulb_slice(resolution=50, z_slice=0, max_iterations=10):
     
     return gridCoords
 
+@register_shape("klein", is_animated=False)
 def generate_klein_bottle(resolution=40):
     """Generate a Klein bottle - a non-orientable surface"""
     gridCoords = []
@@ -378,6 +277,7 @@ def generate_klein_bottle(resolution=40):
     
     return gridCoords
 
+@register_shape("trefoil", is_animated=False)
 def generate_trefoil_knot(resolution=50):
     """Generate a trefoil knot - a classic mathematical knot"""
     gridCoords = []
@@ -452,83 +352,57 @@ def ddd_to_dd(matrix: list[list[tuple[float]]], fov, cameraPos: tuple[float], ca
             py = dd_y * HALF_H + HALF_H
 
             #print(dd_x, dd_y, cameraPos)
-            l.append((px, py))
+            l.append((px, py, z3))
         i.append(l)
 
     return i
     
 
 def render(screen, matrix: list[list[tuple[float]]]):
+    tris = []
     for xIdx in range(len(matrix)):
         xList = matrix[xIdx]
         for yIdx in range(len(xList)):
             point = xList[yIdx]
             if point is not None:
-                points = []
-                points.append((point[0], point[1]))
+
+                if xIdx < len(matrix) - 1 and yIdx < len(xList) - 1:
+                    p1 = matrix[xIdx][yIdx + 1]
+                    p2 = matrix[xIdx + 1][yIdx]
+                    if p1 is not None and p2 is not None:
+                        #pygame.draw.polygon(screen, (150, 0, 150), [point, p1, p2], 0)
+                        d1 = (point[2] + p1[2] + p2[2]) / 3 if len(point) > 2 else 0
+                        tris.append((d1, (point, p1, p2), (150, 0, 150)))
+
+                if xIdx > 0 and yIdx > 0:
+                    p1 = matrix[xIdx][yIdx - 1]
+                    p2 = matrix[xIdx - 1][yIdx]
+                    if p1 is not None and p2 is not None:
+                        #pygame.draw.polygon(screen, (50, 0, 50), [point, p1, p2], 0)
+                        d1 = (point[2] + p1[2] + p2[2]) / 3 if len(point) > 2 else 0
+                        tris.append((d1, (point, p1, p2), ((50, 0, 50))))
+    tris.sort(key=lambda t: t[0], reverse=True)
+    for _, tri, col in tris:
+        pygame.draw.polygon(
+            screen,
+            col,
+            [(tri[0][0], tri[0][1]), (tri[1][0], tri[1][1]), (tri[2][0], tri[2][1])],
+            0,
+        )
 
 
-                try:
-                    if xIdx < len(matrix) - 1:
-                        points.append(matrix[xIdx+1][yIdx])
-                    if yIdx < len(xList) - 1:
-                        points.append(matrix[xIdx][yIdx+1])
-                except(IndexError):
-                    continue
-
-                for p in points:
-                    if p is not None:
-                        pygame.draw.line(screen, (0,0,0), point, p, 2)
-
-
-def generateShape(terrain_type):
-    if terrain_type == "mountain":
-        gridCoords = generate_mountain(20)
-        needsRegen = False
-    elif terrain_type == "waves":
-        gridCoords = generate_waves(30, animation_time)
-        needsRegen = True
-    elif terrain_type == "ripple":
-        gridCoords = generate_ripple(25, animation_time)
-        needsRegen = True
-    elif terrain_type == "canyon":
-        gridCoords = generate_canyon(30)
-        needsRegen = False
-    elif terrain_type == "pyramid":
-        gridCoords = generate_pyramid(15)
-        needsRegen = False
-    elif terrain_type == "spiral":
-        gridCoords = generate_spiral(25, animation_time)
-        needsRegen = True
-    elif terrain_type == "torus":
-        gridCoords = generate_torus(30)
-        needsRegen = False
-    elif terrain_type == "sphere":
-        gridCoords = generate_sphere(20)
-        needsRegen = False
-    elif terrain_type == "mobius":
-        gridCoords = generate_mobius_strip(30)
-        needsRegen = False
-    elif terrain_type == "megacity":
-        gridCoords = generate_megacity(80)
-        needsRegen = False
-    elif terrain_type == "alien":
-        gridCoords = generate_alien_landscape(60, animation_time)
-        needsRegen = True
-    elif terrain_type == "helix":
-        gridCoords = generate_double_helix(60, animation_time)
-        needsRegen = True
-    elif terrain_type == "mandelbulb":
-        gridCoords = generate_mandelbulb_slice(50, 0, 10)
-        needsRegen = False
-    elif terrain_type == "klein":
-        gridCoords = generate_klein_bottle(40)
-        needsRegen = False
-    elif terrain_type == "trefoil":
-        gridCoords = generate_trefoil_knot(50)
-        needsRegen = False
+def generateShape(terrain_type, time=0):
+    if terrain_type in CUSTOM_SHAPES:
+        shape_info = CUSTOM_SHAPES[terrain_type]
+        func = shape_info['function']
+        
+        if shape_info['is_animated']:
+            return func(time=time), True  
+        else:
+            return func(), False
     
-    return gridCoords, needsRegen
+    # Fallback
+    return generate_mountain(), False
 
 cameraPos = [40, 10, 40]
 cameraRot = [0, 0, 0] #[0] = pitch, [1] = yaw, [2] = roll
@@ -536,12 +410,12 @@ speed = 0.1
 baseSpeed = 0.1
 speedMult = 2
 last_facing = cameraRot[:]
-
-needsRegen = False
-terrain_type = "megacity"  
-animation_time = 0
 pos1 = (HALF_W,HALF_H)
 holdingMouse = False
+
+needsRegen = False
+terrain_type = "mountain"  
+animation_time = 0
 
 wasGenerated = False
 lastTerrainType = None
@@ -552,9 +426,9 @@ clock.tick(60)
 while True:
     screen.fill((255, 255, 255))
 
-    animation_time += 0.01
+    animation_time += 0.03
     if terrain_type != lastTerrainType or needsRegen:
-        gridCoords, needsRegen = generateShape(terrain_type)
+        gridCoords, needsRegen = generateShape(terrain_type, animation_time)
         lastTerrainType = terrain_type
     
     # Generate terrain based on type
@@ -624,28 +498,16 @@ while True:
     if keys[pygame.K_3]:
         terrain_type = "ripple"
     if keys[pygame.K_4]:
-        terrain_type = "canyon"
-    if keys[pygame.K_5]:
-        terrain_type = "pyramid"
-    if keys[pygame.K_6]:
-        terrain_type = "spiral"
-    if keys[pygame.K_7]:
         terrain_type = "torus"
-    if keys[pygame.K_8]:
-        terrain_type = "sphere"
-    if keys[pygame.K_9]:
-        terrain_type = "mobius"
-    if keys[pygame.K_0]:
+    if keys[pygame.K_5]:
         terrain_type = "megacity"
-    if keys[pygame.K_q]:
-        terrain_type = "alien"
-    if keys[pygame.K_e]:
+    if keys[pygame.K_6]:
         terrain_type = "helix"
-    if keys[pygame.K_r]:
+    if keys[pygame.K_7]:
         terrain_type = "mandelbulb"
-    if keys[pygame.K_t]:
+    if keys[pygame.K_8]:
         terrain_type = "klein"
-    if keys[pygame.K_y]:
+    if keys[pygame.K_9]:
         terrain_type = "trefoil"
     
     if keys[pygame.K_LCTRL]:
