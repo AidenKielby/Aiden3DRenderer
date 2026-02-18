@@ -52,6 +52,9 @@ from aiden3drenderer import Renderer3D
 # Create and run the renderer with all built-in shapes
 renderer = Renderer3D()
 renderer.camera.position = [0, 0 ,0]
+
+# (renderer.is_mesh) True = render as mesh, False = render as solid shape
+renderer.is_mesh = True 
 renderer.run()
 ```
 
@@ -311,4 +314,5 @@ Created by Aiden. Procedural generation functions created with AI assistance. Al
 ## License
 
 Free to use and modify.
+
 
