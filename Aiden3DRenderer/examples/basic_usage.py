@@ -12,9 +12,15 @@ def main():
     
     # Set starting shape (optional)
     renderer.current_shape = "waves"
-    
+
+    renderer.camera.position = [0, 0 ,0]
+    renderer.is_mesh = False
+    renderer.triangle_color_1 = (0, 150, 0)
+    renderer.triangle_color_2 = (0, 50, 0)
     # Run the renderer
-    renderer.run()
+
+    while True:
+        renderer.loopable_run()
 
 
 if __name__ == "__main__":

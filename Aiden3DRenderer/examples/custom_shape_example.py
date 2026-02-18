@@ -32,7 +32,7 @@ def my_wave(size=30, time=0):
 
 
 # Create a custom static shape - a flower
-@register_shape("flower", pygame.K_f, is_animated=False)
+@register_shape("flower", pygame.K_1, is_animated=False)
 def flower(resolution=30):
     """Flower-shaped 3D surface"""
     grid = []
@@ -55,6 +55,33 @@ def flower(resolution=30):
     
     return grid
 
+
+@register_shape("vortex", key=pygame.K_v, is_animated=True)
+def generate_vortex(grid_size=40, time=0):
+    """Swirling vortex heightfield that stays in the renderer's 2D grid format."""
+    grid = []
+    center = grid_size / 2
+    t = time * 0.6  # spin speed
+
+    for x in range(grid_size):
+        row = []
+        for z in range(grid_size):
+            dx = x - center
+            dz = z - center
+            dist = math.sqrt(dx * dx + dz * dz)
+            angle = math.atan2(dz, dx)
+
+            spiral_angle = angle + dist * 0.25 - t
+
+            swirl_height = 10 * math.sin(spiral_angle * 2.5) * math.exp(-dist / 14)
+            center_pulse = 6 * math.exp(-dist / 6) * (1 + 0.4 * math.sin(t * 1.7))
+
+            y = swirl_height + center_pulse - dist * 0.15
+
+            row.append((x, y, z))
+        grid.append(row)
+
+    return grid
 
 def main():
     # Create renderer

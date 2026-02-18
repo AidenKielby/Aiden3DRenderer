@@ -238,15 +238,22 @@ class Renderer3D:
         self.camera.update(keys)
         
         self.generate_shape_from_key_press(keys, self.animation_time)
-        
-        if self.grid_coords:
-            projected = self.project_3d_to_2d(
-                self.grid_coords,
-                math.radians(100),
-                tuple(self.camera.position),
-                tuple(self.camera.rotation)
-            )
-            self.render_wireframe(projected)
+
+        for i in range(len(self.shapes)):
+            shape_name = self.shapes[i]
+            #print(shape_name)
+            self.grid_coords = self.generate_shape(shape_name, self.animation_time)
+
+            #print(self.grid_coords)
+
+            if self.grid_coords:
+                projected = self.project_3d_to_2d(
+                    self.grid_coords[0],
+                    math.radians(100),
+                    tuple(self.camera.position),
+                    tuple(self.camera.rotation)
+                )
+                self.render_wireframe(projected)
         
         pygame.display.update()
         
