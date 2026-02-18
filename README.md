@@ -382,11 +382,12 @@ python -m twine upload dist/*
 
 ## Credits
 
-Created by Aiden. Procedural generation functions created with AI assistance. All rendering, projection, and camera code written manually.
+Created by Aiden. Procedural generation functions created with AI assistance (the things like mountain and megacity). All rendering, projection, and camera code written manually.
 
 ## License
 
 Free to use and modify.
+
 
 
 
