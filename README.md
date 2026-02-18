@@ -10,7 +10,8 @@ A lightweight 3D wireframe renderer built with Pygame featuring custom projectio
 - **Real-time rendering** - 60 FPS wireframe rendering
 - **Animated terrains** - Several terrains feature time-based animations
 - **Extensible API** - Easy to create and register custom shapes with decorators
-- **Multiple Object Support** - render multiple shapes at the same time
+- **Multiple Object Support** - Render multiple shapes at the same time
+- **Custom Colors** - Ability to change colors on a per shape basis
 
 ## Gallery
 
@@ -414,6 +415,7 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 Free to use and modify.
+
 
 
 
