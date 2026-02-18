@@ -1,2 +1,0 @@
-[console_scripts]
-aiden3d-demo = aiden3drenderer.renderer:main
