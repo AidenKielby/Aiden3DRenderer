@@ -305,8 +305,8 @@ examples/
 ### Running from Source
 
 ```bash
-git clone https://github.com/yourusername/aiden3drenderer.git
-cd aiden3drenderer
+git clone https://github.com/AidenKielby/3D-mesh-Renderer
+cd 3D-mesh-Renderer
 pip install -e .
 python examples/basic_usage.py
 ```
@@ -326,3 +326,4 @@ Created by Aiden. Procedural generation functions created with AI assistance. Al
 ## License
 
 Free to use and modify.
+
