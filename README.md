@@ -66,7 +66,7 @@ A lightweight 3D wireframe renderer built with Pygame featuring custom projectio
     </tr>
     <tr>
       <td align="center">
-        <img src="media/ColorTree" alt="Colored Tree" width="400"/>
+        <img src="media/ColorTree.png" alt="Colored Tree" width="400"/>
         <br/>
         <b>Colored Tree</b>
         <br/>
@@ -423,6 +423,7 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 Free to use and modify.
+
 
 
 
