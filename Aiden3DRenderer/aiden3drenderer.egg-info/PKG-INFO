@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: aiden3drenderer
-Version: 0.1.4
+Version: 0.1.5
 Summary: A lightweight 3D wireframe renderer built from scratch using Pygame
 Home-page: https://github.com/AidenKielby/3D-mesh-Renderer
 Author: Aiden
@@ -43,6 +43,7 @@ A lightweight 3D wireframe renderer built with Pygame featuring custom projectio
 - **Real-time rendering** - 60 FPS wireframe rendering
 - **Animated terrains** - Several terrains feature time-based animations
 - **Extensible API** - Easy to create and register custom shapes with decorators
+- **Multiple Object Support** - render multiple shapes at the same time
 
 ## Gallery
 
@@ -78,6 +79,21 @@ A lightweight 3D wireframe renderer built with Pygame featuring custom projectio
         <b>Simple City (laggy when solid render)</b>
         <br/>
         <i>City preset in solid render</i>
+      </td>
+      <tr>
+      <td align="center">
+        <img src="media/DualObjMesh.png" alt="Tree Mesh" width="400"/>
+        <br/>
+        <b>Tree Mesh</b>
+        <br/>
+        <i>Tree render from tree_example.py in examples</i>
+      </td>
+      <td align="center">
+        <img src="media/DualObjFull.png" alt="Tree Solid Render" width="400"/>
+        <br/>
+        <b>Tree Solid Render</b>
+        <br/>
+        <i>Tree render from tree_example.py in examples</i>
       </td>
     </tr>
   </table>
@@ -151,6 +167,8 @@ To create custom shapes compatible with this 3D mesh renderer, you must write Py
 Points are usually arranged such that `matrix[row][col]` gives the (x, y, z) of the point at column `col` in row `row`. Loops that fill your matrix should ensure that each sub-list (row) is always the full width—pad with `None` or duplicate valid coordinates if needed, but empty or missing values will cause indexing errors. Avoid using polar or arbitrary arrangements for each row: either fill every cell with an (x, y, z) tuple, or, if the shape doesn't naturally fit a rectangle (e.g., cones/canopies), pad shorter rows to the full length to maintain a perfect rectangle.
 
 Your function should accept at least the two arguments `grid_size` (which determines the overall scale and discretization) and `frame` (for animation support; ignored if not animating), and always return the correctly-sized 2D matrix ready for rendering. If any row in your matrix is shorter than the others, or you index cells that do not exist, you will get `IndexError: list index out of range`. Review your logic to ensure each row always contains the expected number of vertices, and debug with simple cubes or grids first to be confident in your shape's layout.
+
+To render multiple shapes at the same time, simply have the shapes use the same key press activation as another shape.
 
 #### Simple Shapes
 ```python
@@ -428,3 +446,5 @@ Created by Aiden. Procedural generation functions created with AI assistance (th
 ## License
 
 Free to use and modify.
+
+

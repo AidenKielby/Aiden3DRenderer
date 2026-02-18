@@ -8,7 +8,7 @@ import pygame
 from aiden3drenderer import Renderer3D, register_shape
 
 
-@register_shape("My Plane", key=pygame.K_p, is_animated=False)
+@register_shape("My Plane", key=pygame.K_p, is_animated=False, color=(100, 100, 100))
 def generate_pyramid(grid_size=40, frame=0):
   """Generate a simple plane."""
   matrix = [
@@ -19,7 +19,7 @@ def generate_pyramid(grid_size=40, frame=0):
   return matrix
 
 # Create a custom animated wave shape
-@register_shape("my_custom_wave", pygame.K_c, is_animated=True)
+@register_shape("my_custom_wave", pygame.K_c, is_animated=True, color=(100, 100, 100))
 def my_wave(size=30, time=0):
     """Custom wave pattern that pulses and rotates"""
     grid = []
@@ -42,7 +42,7 @@ def my_wave(size=30, time=0):
 
 
 # Create a custom static shape - a flower
-@register_shape("flower", pygame.K_1, is_animated=False)
+@register_shape("flower", pygame.K_1, is_animated=False, color=(100, 100, 100))
 def flower(resolution=30):
     """Flower-shaped 3D surface"""
     grid = []
@@ -66,7 +66,7 @@ def flower(resolution=30):
     return grid
 
 
-@register_shape("vortex", key=pygame.K_v, is_animated=True)
+@register_shape("vortex", key=pygame.K_v, is_animated=True, color=(100, 100, 100))
 def generate_vortex(grid_size=40, time=0):
     """Swirling vortex heightfield that stays in the renderer's 2D grid format."""
     grid = []

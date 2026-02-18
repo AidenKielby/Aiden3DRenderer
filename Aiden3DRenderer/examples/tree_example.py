@@ -2,7 +2,7 @@ from aiden3drenderer import Renderer3D, register_shape
 import pygame
 import math
 
-@register_shape("Tree (Sphere+Cylinder)", key=pygame.K_i, is_animated=False)
+@register_shape("Tree (Sphere+Cylinder)", key=pygame.K_i, is_animated=False, color=(100, 100, 100))
 def generate_tree(grid_size=40, frame=0):
     """Generate a tree: sphere (leaves) on top of a cylinder (trunk)."""
     # Parameters
@@ -56,10 +56,6 @@ if __name__ == "__main__":
 
     running = True
     while running:
-        renderer.screen.fill((255, 255, 255))
-        renderer.clock.tick(60)
-        renderer.animation_time += 0.01
-
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -71,28 +67,8 @@ if __name__ == "__main__":
         keys = pygame.key.get_pressed()
         if keys[pygame.K_ESCAPE]:
             running = False
-        renderer.camera.update(keys)
-        renderer.generate_shape_from_key_press(keys, renderer.animation_time)
-        renderer.grid_coords_list = []
-        for i in range(len(renderer.shapes)):
-            shape_name = renderer.shapes[i]
-            renderer.grid_coords_list.append(renderer.generate_shape(shape_name, renderer.animation_time))
-        renderer.projections_list = []
-        for i in range(len(renderer.grid_coords_list)):
-            renderer.grid_coords = renderer.grid_coords_list[i]
-            if renderer.grid_coords:
-                projected = renderer.project_3d_to_2d(
-                    renderer.grid_coords[0],
-                    math.radians(100),
-                    tuple(renderer.camera.position),
-                    tuple(renderer.camera.rotation)
-                )
-                renderer.projections_list.append(projected)
-        if not renderer.is_mesh:
-            renderer.render_wireframe(renderer.projections_list)
-        else:
-            for proj in renderer.projections_list:
-                renderer.render_wireframe(proj)
+
+        renderer.loopable_run()
 
         # Draw toggle instructions
         if font:

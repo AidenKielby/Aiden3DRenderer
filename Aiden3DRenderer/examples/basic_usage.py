@@ -7,7 +7,7 @@ from aiden3drenderer import Renderer3D, register_shape
 import pygame
 import math
 
-@register_shape("flower", pygame.K_1, is_animated=False)
+@register_shape("flower", pygame.K_1, is_animated=False, color=(100, 100, 100))
 def flower(resolution=30):
     """Flower-shaped 3D surface"""
     grid = []

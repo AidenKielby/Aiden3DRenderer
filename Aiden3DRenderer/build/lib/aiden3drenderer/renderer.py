@@ -10,13 +10,12 @@ from .camera import Camera
 
 CUSTOM_SHAPES = {}
 
-def register_shape(name: str, key=None, is_animated: bool = False, color: tuple[int] = None):
+def register_shape(name: str, key=None, is_animated: bool = False):
     def decorator(func):
         CUSTOM_SHAPES[name] = {
             'function': func,
             'is_animated': is_animated,
-            'key': key,
-            'color': color
+            'key': key
         }
         return func
     return decorator
@@ -42,18 +41,12 @@ class Renderer3D:
         self.grid_coords = None
         self.needs_regen = False
         self.shapes = ["mountain"]
-        self.projected = None
 
         self.is_starting = True
 
         self.is_mesh = True
-        self.triangle_base_color_1= (150, 0, 150)
-        self.triangle_base_color_2 = (50, 0, 50)
-        self.triangle_color_list_1= []
-        self.triangle_color_list_2 = []
-
-        self.grid_coords_list = []
-        self.projections_list = []
+        self.triangle_color_1= (150, 0, 150)
+        self.triangle_color_2 = (50, 0, 50)
         
     def project_3d_to_2d(self, matrix, fov, camera_pos, camera_facing):
         projected = []
@@ -123,40 +116,30 @@ class Renderer3D:
                         for p in points:
                             pygame.draw.line(self.screen, (0, 0, 0), point, p, 2)
         else:
-            all_tris = []
-            for matI in range(len(matrix)):
-                mat = matrix[matI]
-                tris = []
+            tris = []
+            for xIdx in range(len(matrix)):
+                xList = matrix[xIdx]
+                for yIdx in range(len(xList)):
+                    point = xList[yIdx]
+                    if point is not None:
 
-                col1 = self.triangle_color_list_1[matI] if self.triangle_color_list_1[matI] is not None else self.triangle_base_color_1
-                col2 = self.triangle_color_list_2[matI] if self.triangle_color_list_2[matI] is not None else self.triangle_base_color_2
-                
-                for xIdx in range(len(mat)):
-                    xList = mat[xIdx]
-                    for yIdx in range(len(xList)):
-                        point = xList[yIdx]
-                        if point is not None:
+                        if xIdx < len(matrix) - 1 and yIdx < len(xList) - 1:
+                            p1 = matrix[xIdx][yIdx + 1]
+                            p2 = matrix[xIdx + 1][yIdx]
+                            if p1 is not None and p2 is not None:
+                                #pygame.draw.polygon(screen, (150, 0, 150), [point, p1, p2], 0)
+                                d1 = (point[2] + p1[2] + p2[2]) / 3 if len(point) > 2 else 0
+                                tris.append((d1, (point, p1, p2), self.triangle_color_1))
 
-                            if xIdx < len(mat) - 1 and yIdx < len(xList) - 1:
-                                p1 = mat[xIdx][yIdx + 1]
-                                p2 = mat[xIdx + 1][yIdx]
-                                if p1 is not None and p2 is not None:
-                                    #pygame.draw.polygon(screen, (150, 0, 150), [point, p1, p2], 0)
-                                    d1 = (point[2] + p1[2] + p2[2]) / 3 if len(point) > 2 else 0
-                                    tris.append((d1, (point, p1, p2), col1))
-
-                            if xIdx > 0 and yIdx > 0:
-                                p1 = mat[xIdx][yIdx - 1]
-                                p2 = mat[xIdx - 1][yIdx]
-                                if p1 is not None and p2 is not None:
-                                    #pygame.draw.polygon(screen, (50, 0, 50), [point, p1, p2], 0)
-                                    d1 = (point[2] + p1[2] + p2[2]) / 3 if len(point) > 2 else 0
-                                    tris.append((d1, (point, p1, p2), col2))
-                all_tris.extend(tris)
-            
-            all_tris.sort(key=lambda t: t[0], reverse=True)
-
-            for _, tri, col in all_tris:
+                        if xIdx > 0 and yIdx > 0:
+                            p1 = matrix[xIdx][yIdx - 1]
+                            p2 = matrix[xIdx - 1][yIdx]
+                            if p1 is not None and p2 is not None:
+                                #pygame.draw.polygon(screen, (50, 0, 50), [point, p1, p2], 0)
+                                d1 = (point[2] + p1[2] + p2[2]) / 3 if len(point) > 2 else 0
+                                tris.append((d1, (point, p1, p2), self.triangle_color_2))
+            tris.sort(key=lambda t: t[0], reverse=True)
+            for _, tri, col in tris:
                 pygame.draw.polygon(
                     self.screen,
                     col,
@@ -168,15 +151,6 @@ class Renderer3D:
         if shape_name in CUSTOM_SHAPES:
             shape_info = CUSTOM_SHAPES[shape_name]
             func = shape_info['function']
-            color = shape_info['color']
-
-            if color is not None:
-                self.triangle_color_list_2.append((color[0]*0.75, color[1]*0.75, color[2]*0.75))
-            else:
-                self.triangle_color_list_2.append(None)
-
-            self.triangle_color_list_1.append(color)
-            
             
             if shape_info['is_animated']:
                 return func(time=time), True
@@ -201,21 +175,11 @@ class Renderer3D:
                 )
             
             self.is_starting = False"""
-        
-    def min_z(self, lvl1):
-        values = [
-            t[2]
-            for lvl2 in lvl1
-            for t in lvl2
-            if t is not None
-        ]
-        return max(values) if values else float("-inf")
 
     def run(self):
         running = True
+        
         while running:
-            self.triangle_color_list_1 = []
-            self.triangle_color_list_2 = []
             self.screen.fill((255, 255, 255))
             self.clock.tick(60)
             self.animation_time += 0.01
@@ -235,18 +199,13 @@ class Renderer3D:
             
             self.generate_shape_from_key_press(keys, self.animation_time)
 
-            self.grid_coords_list = []
-
             for i in range(len(self.shapes)):
                 shape_name = self.shapes[i]
                 #print(shape_name)
-                self.grid_coords_list.append(self.generate_shape(shape_name, self.animation_time))
+                self.grid_coords = self.generate_shape(shape_name, self.animation_time)
 
-            
-            self.projections_list = []
+                #print(self.grid_coords)
 
-            for i in range(len(self.grid_coords_list)):
-                self.grid_coords = self.grid_coords_list[i]
                 if self.grid_coords:
                     projected = self.project_3d_to_2d(
                         self.grid_coords[0],
@@ -254,15 +213,8 @@ class Renderer3D:
                         tuple(self.camera.position),
                         tuple(self.camera.rotation)
                     )
-                    self.projections_list.append(projected)
+                    self.render_wireframe(projected)
             
-            if not self.is_mesh:
-                self.render_wireframe(self.projections_list)
-            else:
-                for proj in self.projections_list:
-                    self.render_wireframe(proj)
-
-
             pygame.display.update()
         
         pygame.quit()
@@ -271,9 +223,6 @@ class Renderer3D:
         self.screen.fill((255, 255, 255))
         self.clock.tick(60)
         self.animation_time += 0.01
-
-        self.triangle_color_list_1 = []
-        self.triangle_color_list_2 = []
         
         # Handle events
         for event in pygame.event.get():
@@ -290,18 +239,15 @@ class Renderer3D:
         
         self.generate_shape_from_key_press(keys, self.animation_time)
 
-        self.grid_coords_list = []
+        print(self.shapes)
 
         for i in range(len(self.shapes)):
             shape_name = self.shapes[i]
             #print(shape_name)
-            self.grid_coords_list.append(self.generate_shape(shape_name, self.animation_time))
+            self.grid_coords = self.generate_shape(shape_name, self.animation_time)
 
-        
-        self.projections_list = []
+            #print(self.grid_coords)
 
-        for i in range(len(self.grid_coords_list)):
-            self.grid_coords = self.grid_coords_list[i]
             if self.grid_coords:
                 projected = self.project_3d_to_2d(
                     self.grid_coords[0],
@@ -309,15 +255,7 @@ class Renderer3D:
                     tuple(self.camera.position),
                     tuple(self.camera.rotation)
                 )
-                self.projections_list.append(projected)
-        
-        if not self.is_mesh:
-            self.render_wireframe(self.projections_list)
-        else:
-            for proj in self.projections_list:
-                self.render_wireframe(proj)
-
-        print(self.triangle_color_list_1)
+                self.render_wireframe(projected)
         
         pygame.display.update()
         

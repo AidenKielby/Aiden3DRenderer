@@ -7,7 +7,7 @@ import pygame
 from .renderer import register_shape
 
 
-@register_shape("mountain", pygame.K_1, is_animated=False, color=(150, 0, 150))
+@register_shape("mountain", pygame.K_1, is_animated=False)
 def generate_mountain(grid_size=20):
     """Generate a mountain terrain"""
     gridCoords = []
@@ -30,7 +30,7 @@ def generate_mountain(grid_size=20):
     return gridCoords
 
 
-@register_shape("waves", pygame.K_2, is_animated=True, color=(150, 0, 150))
+@register_shape("waves", pygame.K_2, is_animated=True)
 def generate_waves(grid_size=30, time=0):
     """Generate animated sine wave terrain"""
     gridCoords = []
@@ -47,7 +47,7 @@ def generate_waves(grid_size=30, time=0):
     return gridCoords
 
 
-@register_shape("ripple", pygame.K_3, is_animated=True, color=(150, 0, 150))
+@register_shape("ripple", pygame.K_3, is_animated=True)
 def generate_ripple(grid_size=25, time=0):
     """Generate ripple effect from center"""
     gridCoords = []
@@ -65,7 +65,7 @@ def generate_ripple(grid_size=25, time=0):
     return gridCoords
 
 
-@register_shape("canyon", pygame.K_4, is_animated=False, color=(150, 0, 150))
+@register_shape("canyon", pygame.K_4, is_animated=False)
 def generate_canyon(grid_size=30):
     """Generate a canyon/valley terrain"""
     gridCoords = []
@@ -87,7 +87,7 @@ def generate_canyon(grid_size=30):
     return gridCoords
 
 
-@register_shape("pyramid", pygame.K_5, is_animated=False, color=(150, 0, 150))
+@register_shape("pyramid", pygame.K_5, is_animated=False)
 def generate_pyramid(grid_size=15):
     """Generate a stepped pyramid"""
     gridCoords = []
@@ -107,7 +107,7 @@ def generate_pyramid(grid_size=15):
     return gridCoords
 
 
-@register_shape("spiral", pygame.K_6, is_animated=True, color=(150, 0, 150))
+@register_shape("spiral", pygame.K_6, is_animated=True)
 def generate_spiral(grid_size=25, time=0):
     """Generate a spiral shape"""
     gridCoords = []
@@ -132,7 +132,7 @@ def generate_spiral(grid_size=25, time=0):
     return gridCoords
 
 
-@register_shape("torus", pygame.K_7, is_animated=False, color=(150, 0, 150))
+@register_shape("torus", pygame.K_7, is_animated=False)
 def generate_torus(resolution=30):
     """Generate a 3D torus (donut shape)"""
     gridCoords = []
@@ -154,7 +154,7 @@ def generate_torus(resolution=30):
     return gridCoords
 
 
-@register_shape("sphere", pygame.K_8, is_animated=False, color=(150, 0, 150))
+@register_shape("sphere", pygame.K_8, is_animated=False)
 def generate_sphere(resolution=20):
     """Generate a sphere"""
     gridCoords = []
@@ -175,7 +175,7 @@ def generate_sphere(resolution=20):
     return gridCoords
 
 
-@register_shape("mobius", pygame.K_9, is_animated=False, color=(150, 0, 150))
+@register_shape("mobius", pygame.K_9, is_animated=False)
 def generate_mobius_strip(resolution=30):
     """Generate a Möbius strip"""
     gridCoords = []
@@ -196,7 +196,7 @@ def generate_mobius_strip(resolution=30):
     return gridCoords
 
 
-@register_shape("megacity", pygame.K_0, is_animated=False, color=(150, 0, 150))
+@register_shape("megacity", pygame.K_0, is_animated=False)
 def generate_megacity(grid_size=80):
     """Generate a massive futuristic city with procedural buildings"""
     gridCoords = []
@@ -245,7 +245,7 @@ def generate_megacity(grid_size=80):
     return gridCoords
 
 
-@register_shape("alien", pygame.K_q, is_animated=True, color=(150, 0, 150))
+@register_shape("alien", pygame.K_q, is_animated=True)
 def generate_alien_landscape(grid_size=60, time=0):
     """Generate an otherworldly alien landscape with multiple features"""
     gridCoords = []
@@ -290,7 +290,7 @@ def generate_alien_landscape(grid_size=60, time=0):
     return gridCoords
 
 
-@register_shape("helix", pygame.K_e, is_animated=True, color=(150, 0, 150))
+@register_shape("helix", pygame.K_e, is_animated=True)
 def generate_double_helix(length=60, time=0):
     """Generate a DNA-like double helix structure"""
     gridCoords = []
@@ -319,7 +319,7 @@ def generate_double_helix(length=60, time=0):
     return gridCoords
 
 
-@register_shape("mandelbulb", pygame.K_r, is_animated=False, color=(150, 0, 150))
+@register_shape("mandelbulb", pygame.K_r, is_animated=False)
 def generate_mandelbulb_slice(resolution=50, z_slice=0, max_iterations=10):
     """Generate a 2D slice of a 3D Mandelbulb fractal"""
     gridCoords = []
@@ -361,7 +361,7 @@ def generate_mandelbulb_slice(resolution=50, z_slice=0, max_iterations=10):
     return gridCoords
 
 
-@register_shape("klein", pygame.K_t, is_animated=False, color=(150, 0, 150))
+@register_shape("klein", pygame.K_t, is_animated=False)
 def generate_klein_bottle(resolution=40):
     """Generate a Klein bottle - a non-orientable surface"""
     gridCoords = []
@@ -390,7 +390,7 @@ def generate_klein_bottle(resolution=40):
     return gridCoords
 
 
-@register_shape("trefoil", pygame.K_y, is_animated=False, color=(150, 0, 150))
+@register_shape("trefoil", pygame.K_y, is_animated=False)
 def generate_trefoil_knot(resolution=50):
     """Generate a trefoil knot - a classic mathematical knot"""
     gridCoords = []
