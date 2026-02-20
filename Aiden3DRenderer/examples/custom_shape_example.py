@@ -94,8 +94,6 @@ def generate_vortex(grid_size=40, time=0):
     return grid
 
 
-
-
 def main():
     # Create renderer
     renderer = Renderer3D(title="Custom Shapes Demo")

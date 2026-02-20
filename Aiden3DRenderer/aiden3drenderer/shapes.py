@@ -155,12 +155,11 @@ def generate_torus(resolution=30):
 
 
 @register_shape("sphere", pygame.K_8, is_animated=False, color=(150, 0, 150))
-def generate_sphere(resolution=20):
+def generate_sphere(resolution=20, radius=5):
     """Generate a sphere"""
     gridCoords = []
-    radius = 5
     
-    for theta_idx in range(resolution):
+    for theta_idx in range(resolution+1):
         row = []
         for phi_idx in range(resolution):
             theta = (theta_idx / resolution) * math.pi
@@ -170,7 +169,8 @@ def generate_sphere(resolution=20):
             y = radius * math.cos(theta)
             z = radius * math.sin(theta) * math.sin(phi)
             
-            row.append((x + 10, y + 5, z + 10))
+            row.append((x, y, z))
+        row.append(row[0])
         gridCoords.append(row)
     return gridCoords
 
@@ -421,3 +421,37 @@ def generate_trefoil_knot(resolution=50):
         gridCoords.append(row)
     
     return gridCoords
+
+
+@register_shape("plane", None, False)
+def generate_plane(size=20, rot_x=0, rot_y=0, rot_z=0):
+    """Generate a flat plane centered at (0,0,0), optionally rotated around x, y, z axes (in radians)"""
+    grid_coords = []
+    cx = size / 2
+    cz = size / 2
+    for z in range(size):
+        yL = []
+        for x in range(size):
+            px = x - cx
+            py = 0
+            pz = z - cz
+
+            # Rotation around X axis
+            y1 = py * math.cos(rot_x) - pz * math.sin(rot_x)
+            z1 = py * math.sin(rot_x) + pz * math.cos(rot_x)
+            x1 = px
+
+            # Rotation around Y axis
+            x2 = x1 * math.cos(rot_y) + z1 * math.sin(rot_y)
+            z2 = -x1 * math.sin(rot_y) + z1 * math.cos(rot_y)
+            y2 = y1
+
+            # Rotation around Z axis
+            x3 = x2 * math.cos(rot_z) - y2 * math.sin(rot_z)
+            y3 = x2 * math.sin(rot_z) + y2 * math.cos(rot_z)
+            z3 = z2
+
+            yL.append((x3, y3, z3))
+        grid_coords.append(yL)
+
+    return grid_coords

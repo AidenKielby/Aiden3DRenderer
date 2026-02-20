@@ -41,7 +41,7 @@ class Renderer3D:
         self.animation_time = 0
         self.grid_coords = None
         self.needs_regen = False
-        self.shapes = ["mountain"]
+        self.shapes = [self.current_shape]
         self.projected = None
 
         self.is_starting = True
@@ -54,16 +54,26 @@ class Renderer3D:
 
         self.grid_coords_list = []
         self.projections_list = []
-        
+
+    def set_starting_shape(self, shape: str):
+        self.current_shape = shape
+        self.shapes = [self.current_shape]
+
     def project_3d_to_2d(self, matrix, fov, camera_pos, camera_facing):
         projected = []
-        
+        #print(len(self.grid_coords_list))
+        if matrix is None:
+            return None
         for xIdx in range(len(matrix)):
             xList = matrix[xIdx]
             row = []
             for yIdx in range(len(xList)):
                 point = xList[yIdx]
-                #print(point)
+
+                if point is None:
+                    row.append(None)
+                    continue
+
                 x = point[0]
                 y = point[1]
                 z = point[2]
@@ -94,6 +104,11 @@ class Renderer3D:
 
                 px = dd_x * self.half_w + self.half_w
                 py = dd_y * self.half_h + self.half_h
+
+                margin = 1000
+                if px < -margin or px > self.width + margin or py < -margin or py > self.height + margin:
+                    row.append(None)
+                    continue
                 
                 if self.is_mesh:
                     row.append((px, py))
@@ -105,6 +120,8 @@ class Renderer3D:
     
     def render_wireframe(self, matrix):
         if self.is_mesh:
+            if matrix is None:
+                return
             for xIdx in range(len(matrix)):
                 xList = matrix[xIdx]
                 for yIdx in range(len(xList)):
@@ -126,7 +143,11 @@ class Renderer3D:
             all_tris = []
             for matI in range(len(matrix)):
                 mat = matrix[matI]
+                if mat is None:
+                    continue
                 tris = []
+
+                #print(len(self.triangle_color_list_1))
 
                 col1 = self.triangle_color_list_1[matI] if self.triangle_color_list_1[matI] is not None else self.triangle_base_color_1
                 col2 = self.triangle_color_list_2[matI] if self.triangle_color_list_2[matI] is not None else self.triangle_base_color_2
@@ -189,18 +210,12 @@ class Renderer3D:
         shapesList = []
         for shape, value in CUSTOM_SHAPES.items():
             key = value['key']
-            if pressedKeys[key]:
-                shapesList.append(shape)
+            if key is not None:
+                if pressedKeys[key]:
+                    shapesList.append(shape)
         
         if len(shapesList) >= 1:
             self.shapes = shapesList
-        """if self.needs_regen or self.is_starting:
-            self.grid_coords, self.needs_regen = self.generate_shape(
-                        self.current_shape, 
-                        self.animation_time,
-                )
-            
-            self.is_starting = False"""
         
     def min_z(self, lvl1):
         values = [
@@ -214,8 +229,6 @@ class Renderer3D:
     def run(self):
         running = True
         while running:
-            self.triangle_color_list_1 = []
-            self.triangle_color_list_2 = []
             self.screen.fill((255, 255, 255))
             self.clock.tick(60)
             self.animation_time += 0.01
@@ -235,15 +248,10 @@ class Renderer3D:
             
             self.generate_shape_from_key_press(keys, self.animation_time)
 
-            self.grid_coords_list = []
-
             for i in range(len(self.shapes)):
                 shape_name = self.shapes[i]
                 #print(shape_name)
                 self.grid_coords_list.append(self.generate_shape(shape_name, self.animation_time))
-
-            
-            self.projections_list = []
 
             for i in range(len(self.grid_coords_list)):
                 self.grid_coords = self.grid_coords_list[i]
@@ -255,12 +263,17 @@ class Renderer3D:
                         tuple(self.camera.rotation)
                     )
                     self.projections_list.append(projected)
-            
+
             if not self.is_mesh:
                 self.render_wireframe(self.projections_list)
             else:
                 for proj in self.projections_list:
                     self.render_wireframe(proj)
+
+            self.grid_coords_list = []
+            self.triangle_color_list_1 = []
+            self.triangle_color_list_2 = []
+            self.projections_list = []
 
 
             pygame.display.update()
@@ -271,9 +284,6 @@ class Renderer3D:
         self.screen.fill((255, 255, 255))
         self.clock.tick(60)
         self.animation_time += 0.01
-
-        self.triangle_color_list_1 = []
-        self.triangle_color_list_2 = []
         
         # Handle events
         for event in pygame.event.get():
@@ -290,15 +300,10 @@ class Renderer3D:
         
         self.generate_shape_from_key_press(keys, self.animation_time)
 
-        self.grid_coords_list = []
-
         for i in range(len(self.shapes)):
             shape_name = self.shapes[i]
             #print(shape_name)
             self.grid_coords_list.append(self.generate_shape(shape_name, self.animation_time))
-
-        
-        self.projections_list = []
 
         for i in range(len(self.grid_coords_list)):
             self.grid_coords = self.grid_coords_list[i]
@@ -317,7 +322,10 @@ class Renderer3D:
             for proj in self.projections_list:
                 self.render_wireframe(proj)
 
-        print(self.triangle_color_list_1)
+        self.grid_coords_list = []
+        self.triangle_color_list_1 = []
+        self.triangle_color_list_2 = []
+        self.projections_list = []
         
         pygame.display.update()
         
