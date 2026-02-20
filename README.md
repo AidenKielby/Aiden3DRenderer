@@ -270,9 +270,7 @@ if __name__ == "__main__":
 
 #### 2 balls in a box, camera physics too:
 ```python
-from aiden3drenderer import Renderer3D, register_shape, physics
-import pygame
-import math
+from aiden3drenderer import Renderer3D, physics
 
 
 def main():
@@ -319,15 +317,6 @@ def main():
     renderer.camera.base_speed = 1.2
 
     while True:
-        keys = pygame.key.get_pressed()
-        old_pos = list(renderer.camera.position)
-        renderer.camera.update(keys)
-        new_pos = renderer.camera.position
-        
-        camera.anchor_position[0] += new_pos[0] - old_pos[0]
-        camera.anchor_position[1] += new_pos[1] - old_pos[1]
-        camera.anchor_position[2] += new_pos[2] - old_pos[2]
-        renderer.camera.position = old_pos
         
         ball1.add_forces(gravity)
         ball2.add_forces(gravity)
