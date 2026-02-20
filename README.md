@@ -209,6 +209,50 @@ renderer = Renderer3D()
 renderer.run()
 ```
 
+## Physics
+```python
+from aiden3drenderer import Renderer3D, register_shape, physics
+import pygame
+import math
+
+
+def main():
+    # Create the renderer
+    renderer = Renderer3D(width=1000, height=1000, title="My 3D Renderer")
+
+    # Add physics shapes
+    shape = physics.ShapePhysicsObject(renderer, "sphere", (0,0,0), (100, 0, 0), 5, 20, 20)
+    shape.add_forces((-0.7, 0, 0))
+    shape.anchor_position = [20, 0, 0]
+
+    shape1 = physics.ShapePhysicsObject(renderer, "sphere", (0,0,0), (50, 0, 0), 5, 10, 20)
+    shape1.add_forces((0.7, 0, 0))
+    shape1.anchor_position = [0, 0, 0]
+
+    # Create object handler
+    obj_handler = physics.PhysicsObjectHandler()
+
+    # Add all shapes
+    obj_handler.add_shape(shape)
+    obj_handler.add_shape(shape1)
+
+    # Set starting shape (optional)
+    renderer.set_starting_shape(None)
+
+    renderer.camera.position = [0, 0 ,0]
+    renderer.is_mesh = False
+    # Run the renderer
+
+    while True:
+        obj_handler.handle_shapes()
+        renderer.loopable_run()
+
+
+if __name__ == "__main__":
+    main()
+
+```
+
 ## Controls
 
 ### Camera Movement
@@ -432,6 +476,7 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 Free to use and modify.
+
 
 
 
