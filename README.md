@@ -12,6 +12,7 @@ A lightweight 3D wireframe renderer built with Pygame featuring custom projectio
 - **Extensible API** - Easy to create and register custom shapes with decorators
 - **Multiple Object Support** - Render multiple shapes at the same time
 - **Custom Colors** - Ability to change colors on a per shape basis
+- **Simple Physics Engine** - easy to add physics to your render
 
 ## Gallery
 
@@ -71,6 +72,14 @@ A lightweight 3D wireframe renderer built with Pygame featuring custom projectio
         <b>Colored Tree</b>
         <br/>
         <i>Tree render from tree_example.py in examples (with color update)</i>
+      </td>
+      <td align="center">
+        <img src="media/PhysicsDemo.gif" alt="Physics Demo" width="400"/>
+        <br/>
+        <b>Physics Demo</b>
+        <br/>
+        <i>Physics Demo from physics_test.py in examples</i>
+      </td>
     </tr>
   </table>
 </div>
@@ -423,6 +432,7 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 Free to use and modify.
+
 
 
 
