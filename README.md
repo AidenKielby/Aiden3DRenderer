@@ -295,8 +295,10 @@ def main():
     ball_radius = 4   # Slightly larger balls
     ball_mass = 2.5
     ball_grid = 8     # Slightly higher resolution
+
     ball1 = physics.ShapePhysicsObject(renderer, "sphere", (0, 0, 0), ball_color, ball_radius, ball_mass, ball_grid)
     ball1.anchor_position = [0, 0, 0]
+    
     ball2 = physics.ShapePhysicsObject(renderer, "sphere", (0, 0, 0), ball_color, ball_radius, ball_mass, ball_grid)
     ball2.anchor_position = [9, 0, 0]
 
@@ -313,11 +315,8 @@ def main():
     obj_handler.add_shape(ball2)
 
     renderer.set_starting_shape(None)
-    renderer.camera.position = [0, 0, 0]
-    camera.anchor_position = [0, 0, 0]
     renderer.is_mesh = False
     renderer.camera.base_speed = 1.2
-    renderer.camera.rotation = [0, math.radians(180), 0]
 
     while True:
         keys = pygame.key.get_pressed()
@@ -339,7 +338,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 ```
 
 ## Controls
