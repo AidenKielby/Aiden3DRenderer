@@ -282,6 +282,8 @@ def main():
     plane_color = (200, 200, 200)
     plane_size = 28  # Slightly larger box
     grid_size = 8    # Slightly higher resolution
+
+    # Use PhysicsObjecthandlers add_plane instead of making a plane with ShapePhysicsObject()
     obj_handler.add_plane(renderer, [0, -14, 0], (0, 0, 0),   plane_color, plane_size, grid_size)  # floor
     obj_handler.add_plane(renderer, [-14, 0, 0], (0, 0, 90),  plane_color, plane_size, grid_size)  # left
     obj_handler.add_plane(renderer, [14, 0, 0],  (0, 0, 90),  plane_color, plane_size, grid_size)  # right
@@ -552,3 +554,4 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 Free to use and modify.
+
