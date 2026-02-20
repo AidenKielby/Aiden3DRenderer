@@ -2,6 +2,7 @@ README.md
 setup.py
 aiden3drenderer/__init__.py
 aiden3drenderer/camera.py
+aiden3drenderer/physics.py
 aiden3drenderer/renderer.py
 aiden3drenderer/shapes.py
 aiden3drenderer.egg-info/PKG-INFO
