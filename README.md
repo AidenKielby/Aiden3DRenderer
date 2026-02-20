@@ -210,6 +210,21 @@ renderer.run()
 ```
 
 ## Physics
+### About
+
+The physics engine in Aiden3DRenderer provides a simple but extensible framework for simulating basic 3D physics interactions. It supports rigid body dynamics for spheres and planes, including gravity, velocity, and collision detection/response. The system allows you to:
+
+- Add physical objects (spheres, planes) to your scene with mass, size, and color
+- Apply forces (like gravity or impulses) to objects
+- Simulate collisions between spheres and with planes (walls, floor, etc.)
+- Attach a physics-enabled camera that can move and collide with the environment
+- Easily manage all physics objects using a handler class
+
+This makes it easy to create interactive demos, simple games, or visualizations where objects move and bounce realistically within a 3D environment. The physics system is designed to be lightweight and easy to integrate with the renderer, while remaining flexible for custom extensions.
+
+### Examples:
+
+#### 2 balls colliding:
 ```python
 from aiden3drenderer import Renderer3D, register_shape, physics
 import pygame
@@ -244,6 +259,80 @@ def main():
     # Run the renderer
 
     while True:
+        obj_handler.handle_shapes()
+        renderer.loopable_run()
+
+
+if __name__ == "__main__":
+    main()
+
+```
+
+#### 2 balls in a box, camera physics too:
+```python
+from aiden3drenderer import Renderer3D, register_shape, physics
+import pygame
+import math
+
+
+def main():
+    # Create the renderer
+    renderer = Renderer3D(width=1000, height=1000, title="My 3D Renderer")
+
+    obj_handler = physics.PhysicsObjectHandler()
+
+    plane_color = (200, 200, 200)
+    plane_size = 28  # Slightly larger box
+    grid_size = 8    # Slightly higher resolution
+    obj_handler.add_plane(renderer, [0, -14, 0], (0, 0, 0),   plane_color, plane_size, grid_size)  # floor
+    obj_handler.add_plane(renderer, [-14, 0, 0], (0, 0, 90),  plane_color, plane_size, grid_size)  # left
+    obj_handler.add_plane(renderer, [14, 0, 0],  (0, 0, 90),  plane_color, plane_size, grid_size)  # right
+    obj_handler.add_plane(renderer, [0, 0, -14], (90, 0, 0),  plane_color, plane_size, grid_size)  # back
+    obj_handler.add_plane(renderer, [0, 0, 14],  (90, 0, 0),  plane_color, plane_size, grid_size)  # front
+
+    # Create two balls (spheres) inside the box
+    ball_color = (100, 100, 255)
+    ball_radius = 4   # Slightly larger balls
+    ball_mass = 2.5
+    ball_grid = 8     # Slightly higher resolution
+    ball1 = physics.ShapePhysicsObject(renderer, "sphere", (0, 0, 0), ball_color, ball_radius, ball_mass, ball_grid)
+    ball1.anchor_position = [0, 0, 0]
+    ball2 = physics.ShapePhysicsObject(renderer, "sphere", (0, 0, 0), ball_color, ball_radius, ball_mass, ball_grid)
+    ball2.anchor_position = [9, 0, 0]
+
+    # Gravity force (downwards)
+    gravity = (0, -0.18, 0)
+    ball1.add_forces((1,0,1))
+
+    camera = physics.CameraPhysicsObject(renderer, renderer.camera, 1, 10)
+
+    obj_handler.add_camera(camera)
+
+    # Add balls
+    obj_handler.add_shape(ball1)
+    obj_handler.add_shape(ball2)
+
+    renderer.set_starting_shape(None)
+    renderer.camera.position = [0, 0, 0]
+    camera.anchor_position = [0, 0, 0]
+    renderer.is_mesh = False
+    renderer.camera.base_speed = 1.2
+    renderer.camera.rotation = [0, math.radians(180), 0]
+
+    while True:
+        keys = pygame.key.get_pressed()
+        old_pos = list(renderer.camera.position)
+        renderer.camera.update(keys)
+        new_pos = renderer.camera.position
+        
+        camera.anchor_position[0] += new_pos[0] - old_pos[0]
+        camera.anchor_position[1] += new_pos[1] - old_pos[1]
+        camera.anchor_position[2] += new_pos[2] - old_pos[2]
+        renderer.camera.position = old_pos
+        
+        ball1.add_forces(gravity)
+        ball2.add_forces(gravity)
+        camera.add_forces(gravity*100)
         obj_handler.handle_shapes()
         renderer.loopable_run()
 
@@ -476,12 +565,3 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 Free to use and modify.
-
-
-
-
-
-
-
-
-
