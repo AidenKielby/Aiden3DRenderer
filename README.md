@@ -13,6 +13,7 @@ A lightweight 3D wireframe renderer built with Pygame featuring custom projectio
 - **Multiple Object Support** - Render multiple shapes at the same time
 - **Custom Colors** - Ability to change colors on a per shape basis
 - **Simple Physics Engine** - easy to add physics to your render
+- **Obj Model Loading** - simple obj model loading
 
 ## Gallery
 
@@ -282,8 +283,6 @@ def main():
     plane_color = (200, 200, 200)
     plane_size = 28  # Slightly larger box
     grid_size = 8    # Slightly higher resolution
-
-    # Use PhysicsObjecthandlers add_plane instead of making a plane with ShapePhysicsObject()
     obj_handler.add_plane(renderer, [0, -14, 0], (0, 0, 0),   plane_color, plane_size, grid_size)  # floor
     obj_handler.add_plane(renderer, [-14, 0, 0], (0, 0, 90),  plane_color, plane_size, grid_size)  # left
     obj_handler.add_plane(renderer, [14, 0, 0],  (0, 0, 90),  plane_color, plane_size, grid_size)  # right
@@ -330,6 +329,38 @@ def main():
 if __name__ == "__main__":
     main()
 ```
+
+## Obj Loading
+### Examples:
+```python
+from aiden3drenderer import Renderer3D, obj_loader
+
+def main():
+    # Create the renderer
+    renderer = Renderer3D(width=1000, height=1000, title="My 3D Renderer")
+    
+    # Set starting shape (optional)
+    renderer.current_shape = None
+
+    renderer.camera.position = [0, 0, 0]
+    renderer.is_mesh = False
+    renderer.using_obj_filetype_format = True
+
+    obj = obj_loader.get_obj("./assets/alloy_forge_block.obj")
+    #print(obj)
+
+    renderer.vertices_faces_list.append(obj)
+    # Run the renderer
+
+    renderer.run()
+
+
+if __name__ == "__main__":
+    main()
+```
+
+### About:
+You can import 3D models from .obj files as shown above, however the rendering is very glitchy. I've tried fixing it for a very long time but am unable. Assistance/feedback is greatly apreciated.
 
 ## Controls
 
@@ -554,4 +585,3 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 Free to use and modify.
-
