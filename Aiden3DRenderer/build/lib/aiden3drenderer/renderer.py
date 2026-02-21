@@ -10,12 +10,13 @@ from .camera import Camera
 
 CUSTOM_SHAPES = {}
 
-def register_shape(name: str, key=None, is_animated: bool = False):
+def register_shape(name: str, key=None, is_animated: bool = False, color: tuple[int] = None):
     def decorator(func):
         CUSTOM_SHAPES[name] = {
             'function': func,
             'is_animated': is_animated,
-            'key': key
+            'key': key,
+            'color': color
         }
         return func
     return decorator
@@ -40,23 +41,58 @@ class Renderer3D:
         self.animation_time = 0
         self.grid_coords = None
         self.needs_regen = False
-        self.shapes = ["mountain"]
+        self.shapes = [self.current_shape]
+        self.projected = None
 
         self.is_starting = True
 
         self.is_mesh = True
-        self.triangle_color_1= (150, 0, 150)
-        self.triangle_color_2 = (50, 0, 50)
-        
+        self.triangle_base_color_1= (150, 0, 150)
+        self.triangle_base_color_2 = (50, 0, 50)
+        self.triangle_color_list_1= []
+        self.triangle_color_list_2 = []
+
+        self.grid_coords_list = []
+        self.vertices_faces_list = []
+        self.projected_vertices_faces_list = []
+        self.using_obj_filetype_format = False
+        self.projections_list = []
+
+    def normalize(self, v):
+        length = math.sqrt(v[0]**2 + v[1]**2 + v[2]**2)
+        if length == 0:
+            return (0, 0, 0)
+        return (v[0]/length, v[1]/length, v[2]/length)
+
+    def cross(self, a, b):
+        return (
+            a[1]*b[2] - a[2]*b[1],
+            a[2]*b[0] - a[0]*b[2],
+            a[0]*b[1] - a[1]*b[0]
+        )
+
+    def dot(self, a, b):
+        return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]
+
+    def set_starting_shape(self, shape: str):
+        self.current_shape = shape
+        self.shapes = [self.current_shape]
+
     def project_3d_to_2d(self, matrix, fov, camera_pos, camera_facing):
         projected = []
-        
+        #print(len(self.grid_coords_list))
+        if matrix is None:
+            return None
         for xIdx in range(len(matrix)):
             xList = matrix[xIdx]
             row = []
             for yIdx in range(len(xList)):
                 point = xList[yIdx]
-                #print(point)
+
+                if point is None:
+                    row.append(None)
+                    continue
+
                 x = point[0]
                 y = point[1]
                 z = point[2]
@@ -87,6 +123,11 @@ class Renderer3D:
 
                 px = dd_x * self.half_w + self.half_w
                 py = dd_y * self.half_h + self.half_h
+
+                margin = 1000
+                if px < -margin or px > self.width + margin or py < -margin or py > self.height + margin:
+                    row.append(None)
+                    continue
                 
                 if self.is_mesh:
                     row.append((px, py))
@@ -96,8 +137,65 @@ class Renderer3D:
 
         return projected
     
+    def project_3d_to_2d_flat(self, inList, fov, camera_pos, camera_facing):
+        projected = []
+        #print(len(self.grid_coords_list))
+        if inList is None:
+            return None
+        for xIdx in range(len(inList)):
+            point = inList[xIdx]
+
+            if point is None:
+                projected.append(None)
+                continue
+
+            x = point[0]
+            y = point[1]
+            z = point[2]
+
+            x -= camera_pos[0]
+            y -= camera_pos[1]
+            z -= camera_pos[2]
+
+            x1 = x * math.cos(camera_facing[1]) + z * math.sin(camera_facing[1])
+            y1 = y
+            z1 = -x * math.sin(camera_facing[1]) + z * math.cos(camera_facing[1])
+
+            x2 = x1
+            y2 = y1 * math.cos(camera_facing[0]) - z1 * math.sin(camera_facing[0])
+            z2 = y1 * math.sin(camera_facing[0]) + z1 * math.cos(camera_facing[0])
+
+            x3 = x2 * math.cos(camera_facing[2]) - y2 * math.sin(camera_facing[2])
+            y3 = x2 * math.sin(camera_facing[2]) + y2 * math.cos(camera_facing[2])
+            z3 = z2
+
+            if z3 <= 0.1:
+                projected.append(None)
+                continue
+
+            f = 1 / math.tan(fov / 2)
+            dd_x = (x3 * f) / -z3
+            dd_y = (y3 * f) / -z3
+
+            px = dd_x * self.half_w + self.half_w
+            py = dd_y * self.half_h + self.half_h
+
+            margin = 1000
+            if px < -margin or px > self.width + margin or py < -margin or py > self.height + margin:
+                projected.append(None)
+                continue
+            
+            if self.is_mesh:
+                projected.append((px, py))
+            else:
+                projected.append((px, py, z3))
+
+        return projected
+    
     def render_wireframe(self, matrix):
         if self.is_mesh:
+            if matrix is None:
+                return
             for xIdx in range(len(matrix)):
                 xList = matrix[xIdx]
                 for yIdx in range(len(xList)):
@@ -116,41 +214,117 @@ class Renderer3D:
                         for p in points:
                             pygame.draw.line(self.screen, (0, 0, 0), point, p, 2)
         else:
-            tris = []
-            for xIdx in range(len(matrix)):
-                xList = matrix[xIdx]
-                for yIdx in range(len(xList)):
-                    point = xList[yIdx]
-                    if point is not None:
+            all_tris = []
+            for matI in range(len(matrix)):
+                mat = matrix[matI]
+                if mat is None:
+                    continue
+                tris = []
 
-                        if xIdx < len(matrix) - 1 and yIdx < len(xList) - 1:
-                            p1 = matrix[xIdx][yIdx + 1]
-                            p2 = matrix[xIdx + 1][yIdx]
-                            if p1 is not None and p2 is not None:
-                                #pygame.draw.polygon(screen, (150, 0, 150), [point, p1, p2], 0)
-                                d1 = (point[2] + p1[2] + p2[2]) / 3 if len(point) > 2 else 0
-                                tris.append((d1, (point, p1, p2), self.triangle_color_1))
+                #print(len(self.triangle_color_list_1))
 
-                        if xIdx > 0 and yIdx > 0:
-                            p1 = matrix[xIdx][yIdx - 1]
-                            p2 = matrix[xIdx - 1][yIdx]
-                            if p1 is not None and p2 is not None:
-                                #pygame.draw.polygon(screen, (50, 0, 50), [point, p1, p2], 0)
-                                d1 = (point[2] + p1[2] + p2[2]) / 3 if len(point) > 2 else 0
-                                tris.append((d1, (point, p1, p2), self.triangle_color_2))
-            tris.sort(key=lambda t: t[0], reverse=True)
-            for _, tri, col in tris:
+                col1 = self.triangle_color_list_1[matI] if self.triangle_color_list_1[matI] is not None else self.triangle_base_color_1
+                col2 = self.triangle_color_list_2[matI] if self.triangle_color_list_2[matI] is not None else self.triangle_base_color_2
+                
+                for xIdx in range(len(mat)):
+                    xList = mat[xIdx]
+                    for yIdx in range(len(xList)):
+                        point = xList[yIdx]
+                        if point is not None:
+
+                            if xIdx < len(mat) - 1 and yIdx < len(xList) - 1:
+                                p1 = mat[xIdx][yIdx + 1]
+                                p2 = mat[xIdx + 1][yIdx]
+                                if p1 is not None and p2 is not None:
+                                    #pygame.draw.polygon(screen, (150, 0, 150), [point, p1, p2], 0)
+                                    d1 = (point[2] + p1[2] + p2[2]) / 3 if len(point) > 2 else 0
+                                    tris.append((d1, (point, p1, p2), col1))
+
+                            if xIdx > 0 and yIdx > 0:
+                                p1 = mat[xIdx][yIdx - 1]
+                                p2 = mat[xIdx - 1][yIdx]
+                                if p1 is not None and p2 is not None:
+                                    #pygame.draw.polygon(screen, (50, 0, 50), [point, p1, p2], 0)
+                                    d1 = (point[2] + p1[2] + p2[2]) / 3 if len(point) > 2 else 0
+                                    tris.append((d1, (point, p1, p2), col2))
+                all_tris.extend(tris)
+            
+            all_tris.sort(key=lambda t: t[0], reverse=True)
+
+            for _, tri, col in all_tris:
                 pygame.draw.polygon(
                     self.screen,
                     col,
                     [(tri[0][0], tri[0][1]), (tri[1][0], tri[1][1]), (tri[2][0], tri[2][1])],
                     0,
                 )
+
+    def render_shape_from_obj_format(self, matrix):
+        if not self.is_mesh:
+            all_tris = []
+            s = True
+            for mat in matrix:
+                if mat is None:
+                    continue
+                vertices, faces = mat
+                for face in faces:
+                    p0 = vertices[face[0]]
+                    p1 = vertices[face[1]]
+                    p2 = vertices[face[2]]
+                    if None in (p0, p1, p2):
+                        continue
+                    if p0[2] <= 0.1 and p1[2] <= 0.1 and p2[2] <= 0.1:
+                        continue
+
+                    # Consistent depth: average of projected Z
+                    depth = min(p0[2], p1[2], p2[2])
+
+                    # Only cull if normal clearly faces away — flip sign if needed
+                    normal = self.normalT_camera_space((p0, p1, p2))
+                    if normal[2] > 0:   # try < 0 if inside-out
+                        continue
+
+                    col = self.triangle_base_color_1 if s else self.triangle_base_color_2
+                    s = not s
+                    all_tris.append((depth, (p0, p1, p2), col))
+
+            # Far to near (larger Z = farther in your camera space)
+            all_tris.sort(key=lambda t: t[0], reverse=True)
+
+            for _, tri, col in all_tris:
+                pygame.draw.polygon(
+                    self.screen,
+                    col,
+                    [(v[0], v[1]) for v in tri],
+                    0
+                )
+
+
+    def normalT_camera_space(self, tri):
+        p0, p1, p2 = tri
+        edge1 = (p1[0]-p0[0], p1[1]-p0[1], p1[2]-p0[2])
+        edge2 = (p2[0]-p0[0], p2[1]-p0[1], p2[2]-p0[2])
+        nx = edge1[1]*edge2[2] - edge1[2]*edge2[1]
+        ny = edge1[2]*edge2[0] - edge1[0]*edge2[2]
+        nz = edge1[0]*edge2[1] - edge1[1]*edge2[0]
+        length = math.sqrt(nx*nx + ny*ny + nz*nz)
+        if length == 0:
+            return (0, 0, 0)
+        return (nx/length, ny/length, nz/length)
     
     def generate_shape(self, shape_name, time=0):
         if shape_name in CUSTOM_SHAPES:
             shape_info = CUSTOM_SHAPES[shape_name]
             func = shape_info['function']
+            color = shape_info['color']
+
+            if color is not None:
+                self.triangle_color_list_2.append((color[0]*0.75, color[1]*0.75, color[2]*0.75))
+            else:
+                self.triangle_color_list_2.append(None)
+
+            self.triangle_color_list_1.append(color)
+            
             
             if shape_info['is_animated']:
                 return func(time=time), True
@@ -163,22 +337,24 @@ class Renderer3D:
         shapesList = []
         for shape, value in CUSTOM_SHAPES.items():
             key = value['key']
-            if pressedKeys[key]:
-                shapesList.append(shape)
+            if key is not None:
+                if pressedKeys[key]:
+                    shapesList.append(shape)
         
         if len(shapesList) >= 1:
             self.shapes = shapesList
-        """if self.needs_regen or self.is_starting:
-            self.grid_coords, self.needs_regen = self.generate_shape(
-                        self.current_shape, 
-                        self.animation_time,
-                )
-            
-            self.is_starting = False"""
+        
+    def min_z(self, lvl1):
+        values = [
+            t[2]
+            for lvl2 in lvl1
+            for t in lvl2
+            if t is not None
+        ]
+        return max(values) if values else float("-inf")
 
     def run(self):
         running = True
-        
         while running:
             self.screen.fill((255, 255, 255))
             self.clock.tick(60)
@@ -198,23 +374,47 @@ class Renderer3D:
             self.camera.update(keys)
             
             self.generate_shape_from_key_press(keys, self.animation_time)
+            if not self.using_obj_filetype_format:
+                for i in range(len(self.shapes)):
+                    shape_name = self.shapes[i]
+                    #print(shape_name)
+                    self.grid_coords_list.append(self.generate_shape(shape_name, self.animation_time))
 
-            for i in range(len(self.shapes)):
-                shape_name = self.shapes[i]
-                #print(shape_name)
-                self.grid_coords = self.generate_shape(shape_name, self.animation_time)
+                for i in range(len(self.grid_coords_list)):
+                    self.grid_coords = self.grid_coords_list[i]
+                    if self.grid_coords:
+                        projected = self.project_3d_to_2d(
+                            self.grid_coords[0],
+                            math.radians(100),
+                            tuple(self.camera.position),
+                            tuple(self.camera.rotation)
+                        )
+                        self.projections_list.append(projected)
 
-                #print(self.grid_coords)
+                if not self.is_mesh:
+                    self.render_wireframe(self.projections_list)
+                else:
+                    for proj in self.projections_list:
+                        self.render_wireframe(proj)
+            else:
+                for i in range(len(self.vertices_faces_list)):
+                    projected = self.project_3d_to_2d_flat(
+                            self.vertices_faces_list[i][0],
+                            math.radians(100),
+                            tuple(self.camera.position),
+                            tuple(self.camera.rotation)
+                        )
+                    self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1]])
+                if not self.is_mesh:
+                    self.render_shape_from_obj_format(self.projected_vertices_faces_list)
 
-                if self.grid_coords:
-                    projected = self.project_3d_to_2d(
-                        self.grid_coords[0],
-                        math.radians(100),
-                        tuple(self.camera.position),
-                        tuple(self.camera.rotation)
-                    )
-                    self.render_wireframe(projected)
-            
+            self.grid_coords_list = []
+            self.triangle_color_list_1 = []
+            self.triangle_color_list_2 = []
+            self.projections_list = []
+            self.projected_vertices_faces_list = []
+
+
             pygame.display.update()
         
         pygame.quit()
@@ -239,23 +439,45 @@ class Renderer3D:
         
         self.generate_shape_from_key_press(keys, self.animation_time)
 
-        print(self.shapes)
+        if not self.using_obj_filetype_format:
+            for i in range(len(self.shapes)):
+                shape_name = self.shapes[i]
+                #print(shape_name)
+                self.grid_coords_list.append(self.generate_shape(shape_name, self.animation_time))
 
-        for i in range(len(self.shapes)):
-            shape_name = self.shapes[i]
-            #print(shape_name)
-            self.grid_coords = self.generate_shape(shape_name, self.animation_time)
+            for i in range(len(self.grid_coords_list)):
+                self.grid_coords = self.grid_coords_list[i]
+                if self.grid_coords:
+                    projected = self.project_3d_to_2d(
+                        self.grid_coords[0],
+                        math.radians(100),
+                        tuple(self.camera.position),
+                        tuple(self.camera.rotation)
+                    )
+                    self.projections_list.append(projected)
 
-            #print(self.grid_coords)
+            if not self.is_mesh:
+                self.render_wireframe(self.projections_list)
+            else:
+                for proj in self.projections_list:
+                    self.render_wireframe(proj)
+        else:
+            for i in range(len(self.vertices_faces_list)):
+                projected = self.project_3d_to_2d_flat(
+                        self.vertices_faces_list[i][0],
+                        math.radians(100),
+                        tuple(self.camera.position),
+                        tuple(self.camera.rotation)
+                    )
+                self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1]])
+            if not self.is_mesh:
+                self.render_shape_from_obj_format(self.projected_vertices_faces_list)
 
-            if self.grid_coords:
-                projected = self.project_3d_to_2d(
-                    self.grid_coords[0],
-                    math.radians(100),
-                    tuple(self.camera.position),
-                    tuple(self.camera.rotation)
-                )
-                self.render_wireframe(projected)
+        self.grid_coords_list = []
+        self.triangle_color_list_1 = []
+        self.triangle_color_list_2 = []
+        self.projections_list = []
+        self.projected_vertices_faces_list = []
         
         pygame.display.update()
         

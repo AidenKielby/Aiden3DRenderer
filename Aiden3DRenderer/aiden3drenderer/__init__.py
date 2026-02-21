@@ -8,13 +8,14 @@ Example usage:
     renderer.run()
 """
 
-__version__ = "1.1.4"
+__version__ = "1.2.1"
 __author__ = "Aiden"
 
 from .renderer import Renderer3D, register_shape
 from .camera import Camera
 from . import shapes
 from . import physics
+from  . import obj_loader
 
 __all__ = [
     "Renderer3D",
@@ -22,4 +23,5 @@ __all__ = [
     "Camera",
     "shapes",
     "physics",
+    "obj_loader",
 ]

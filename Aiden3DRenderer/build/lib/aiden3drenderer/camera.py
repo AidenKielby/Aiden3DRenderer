@@ -8,7 +8,7 @@ import math
 class Camera:
     
     def __init__(self, position=None, rotation=None):
-        self.position = position if position else [40, 10, 40]
+        self.position = position if position else [00, 00, 00]
         self.rotation = rotation if rotation else [0, 0, 0]  # pitch, yaw, roll
         
         self.speed = 0.1

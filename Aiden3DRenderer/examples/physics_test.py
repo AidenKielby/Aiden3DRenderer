@@ -3,9 +3,7 @@ Basic usage example for Aiden3DRenderer
 
 This demonstrates the simplest way to use the renderer.
 """
-from aiden3drenderer import Renderer3D, register_shape, physics
-import pygame
-import math
+from aiden3drenderer import Renderer3D, physics
 
 
 def main():

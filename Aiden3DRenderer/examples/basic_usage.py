@@ -39,8 +39,6 @@ def main():
 
     renderer.camera.position = [0, 0 ,0]
     renderer.is_mesh = False
-    renderer.triangle_color_1 = (0, 150, 0)
-    renderer.triangle_color_2 = (0, 50, 0)
     # Run the renderer
 
     while True:
