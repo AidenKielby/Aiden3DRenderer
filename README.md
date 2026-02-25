@@ -104,6 +104,8 @@ from aiden3drenderer import Renderer3D
 
 # Create and run the renderer with all built-in shapes
 renderer = Renderer3D()
+# renderer = Renderer3D(title="Custom Shapes Demo", load_default_shapes=False)
+# Above would give the renderer that title and the renderer would not use default shapes
 renderer.camera.position = [0, 0 ,0]
 # is_mesh = True for mesh, False for solid colors
 renderer.is_mesh = False
@@ -121,6 +123,8 @@ renderer.camera.position = [0, 0 ,0]
 renderer.is_mesh = False
 
 while True:
+    # renderer.set_use_default_shapes(bool)
+    # Above can be used to set the using of default shapes at runtime
     renderer.loopable_run()
 ```
 
@@ -585,3 +589,4 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 Free to use and modify.
+
