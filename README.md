@@ -82,6 +82,22 @@ A lightweight 3D wireframe renderer built with Pygame featuring custom projectio
         <i>Physics Demo from physics_test.py in examples</i>
       </td>
     </tr>
+    <tr>
+      <td align="center">
+        <img src="media/MinecraftBoatFull.png" alt="Minecraft Boat Filled" width="400"/>
+        <br/>
+        <b>Minecraft Boat Filled</b>
+        <br/>
+        <i>OBJ file renderer showcase</i>
+      </td>
+      <td align="center">
+        <img src="media/MinecraftBoatWireframe.png" alt="Minecraft Boat Wireframe" width="400"/>
+        <br/>
+        <b>Minecraft Boat Wireframe</b>
+        <br/>
+        <i>OBJ file renderer showcase</i>
+      </td>
+    </tr>
   </table>
 </div>
 
@@ -589,4 +605,5 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 Free to use and modify.
+
 
