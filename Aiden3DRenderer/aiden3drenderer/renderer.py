@@ -319,6 +319,22 @@ class Renderer3D:
             all_tris.sort(key=lambda t: t[0], reverse=True)
             for _, tri, col in all_tris:
                 pygame.draw.polygon(self.screen, col, [(v[0], v[1]) for v in tri], 0)
+        else:
+            for matI in range(len(matrix)):
+                mat = matrix[matI]
+                if mat is None:
+                    continue
+                vertices, faces = mat
+                for face in faces:
+                    p0 = vertices[face[0]]
+                    p1 = vertices[face[1]]
+                    p2 = vertices[face[2]]
+                    if None in (p0, p1, p2):
+                        continue
+
+                    pygame.draw.line(self.screen, (0, 0, 0), p0, p1, 2)
+                    pygame.draw.line(self.screen, (0, 0, 0), p1, p2, 2)
+                    pygame.draw.line(self.screen, (0, 0, 0), p2, p0, 2)
 
     def to_cam_space(self, point):
         x = point[0]
@@ -451,8 +467,8 @@ class Renderer3D:
                             tuple(self.camera.rotation)
                         )
                     self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1]])
-                if not self.is_mesh:
-                    self.render_shape_from_obj_format(self.projected_vertices_faces_list)
+                #if not self.is_mesh:
+                self.render_shape_from_obj_format(self.projected_vertices_faces_list)
 
             self.grid_coords_list = []
             self.triangle_color_list_1 = []
@@ -516,8 +532,8 @@ class Renderer3D:
                         tuple(self.camera.rotation)
                     )
                 self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1]])
-            if not self.is_mesh:
-                self.render_shape_from_obj_format(self.projected_vertices_faces_list)
+            #if not self.is_mesh:
+            self.render_shape_from_obj_format(self.projected_vertices_faces_list)
 
         self.grid_coords_list = []
         self.triangle_color_list_1 = []

@@ -11,7 +11,7 @@ def main():
     renderer.current_shape = None
 
     renderer.camera.position = [0, 0, 0]
-    renderer.is_mesh = False
+    renderer.is_mesh = True
     renderer.using_obj_filetype_format = True
 
     obj = obj_loader.get_obj("./assets/alloy_forge_block.obj")
