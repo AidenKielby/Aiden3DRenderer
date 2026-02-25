@@ -4,7 +4,7 @@ import random
 import pygame
 from .renderer import Renderer3D
 from .camera import Camera
-from . import shapes
+import importlib
 
 class ShapePhysicsObject:
     def __init__(self, renderer: Renderer3D, shape: str, rotation: tuple[float], color: tuple[int], size: float, mass: float, grid_size: float):
@@ -26,6 +26,9 @@ class ShapePhysicsObject:
         self.velocity = [0, 0, 0]
         self.timeStep = 1
         self.size = size
+
+        # lazily import shapes to avoid side-effects at module import time
+        shapes = importlib.import_module('.shapes', package=__package__)
 
         if shape == "sphere":
             self.grid_coords = shapes.generate_sphere(resolution=grid_size, radius=size)

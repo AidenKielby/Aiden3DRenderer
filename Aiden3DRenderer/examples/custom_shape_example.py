@@ -96,21 +96,18 @@ def generate_vortex(grid_size=40, time=0):
 
 def main():
     # Create renderer
-    renderer = Renderer3D(title="Custom Shapes Demo")
+    renderer = Renderer3D(title="Custom Shapes Demo", load_default_shapes=False)
     
     # Start with our custom wave
-    renderer.current_shape = "My Plane"
+    renderer.current_shape = "flower"
     
     print("Controls:")
-    print("1-9, 0: Built-in shapes")
-    print("F: Flower shape")
     print("C: Custom wave")
     print("")
     print("WASD: Move, Space/Shift: Up/Down")
     print("Right mouse drag: Look around")
     
-    renderer.is_mesh = False
-
+    renderer.is_mesh = True
     # Run
     renderer.run()
 

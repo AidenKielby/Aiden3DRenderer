@@ -5,6 +5,7 @@ import math
 import pygame
 from pygame import QUIT
 import sys
+import importlib
 
 from .camera import Camera
 
@@ -21,10 +22,9 @@ def register_shape(name: str, key=None, is_animated: bool = False, color: tuple[
         return func
     return decorator
 
-
 class Renderer3D:
     
-    def __init__(self, width=1000, height=1000, title="Aiden 3D Renderer"):
+    def __init__(self, width=1000, height=1000, title="Aiden 3D Renderer", load_default_shapes: bool = True):
         pygame.init()
         self.width = width
         self.height = height
@@ -58,6 +58,21 @@ class Renderer3D:
         self.using_obj_filetype_format = False
         self.projections_list = []
 
+        self.is_using_default_shapes = load_default_shapes
+        self._default_shape_names = set()
+        self._default_shapes_loaded = False
+
+        if load_default_shapes:
+            before = set(CUSTOM_SHAPES.keys())
+            try:
+                mod = importlib.import_module('.shapes', package=__package__)
+                importlib.reload(mod)
+            except Exception:
+                mod = None
+            after = set(CUSTOM_SHAPES.keys())
+            self._default_shape_names = after - before
+            self._default_shapes_loaded = bool(self._default_shape_names)
+
     def normalize(self, v):
         length = math.sqrt(v[0]**2 + v[1]**2 + v[2]**2)
         if length == 0:
@@ -77,6 +92,28 @@ class Renderer3D:
     def set_starting_shape(self, shape: str):
         self.current_shape = shape
         self.shapes = [self.current_shape]
+
+    def set_use_default_shapes(self, use: bool):
+        if use == self.is_using_default_shapes:
+            return
+        self.is_using_default_shapes = use
+        if use:
+            before = set(CUSTOM_SHAPES.keys())
+            try:
+                mod = importlib.import_module('.shapes', package=__package__)
+                importlib.reload(mod)
+            except Exception:
+                return
+            after = set(CUSTOM_SHAPES.keys())
+            added = after - before
+            self._default_shape_names.update(added)
+            self._default_shapes_loaded = bool(self._default_shape_names)
+        else:
+            for name in list(self._default_shape_names):
+                if name in CUSTOM_SHAPES:
+                    del CUSTOM_SHAPES[name]
+            self._default_shape_names.clear()
+            self._default_shapes_loaded = False
 
     def project_3d_to_2d(self, matrix, fov, camera_pos, camera_facing):
         projected = []
@@ -290,7 +327,6 @@ class Renderer3D:
                     if None in (up0, up1, up2):
                         continue
                     normal = self.normalT_camera_space((up0, up1, up2))
-                    print(normal)
 
                     if normal[2] >= 0:
                         continue

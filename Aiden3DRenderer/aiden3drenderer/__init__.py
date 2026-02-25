@@ -8,20 +8,18 @@ Example usage:
     renderer.run()
 """
 
-__version__ = "1.2.2"
+__version__ = "1.2.3"
 __author__ = "Aiden"
 
 from .renderer import Renderer3D, register_shape
 from .camera import Camera
-from . import shapes
 from . import physics
-from  . import obj_loader
+from . import obj_loader
 
 __all__ = [
     "Renderer3D",
     "register_shape",
     "Camera",
-    "shapes",
     "physics",
     "obj_loader",
 ]
