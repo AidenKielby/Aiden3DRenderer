@@ -361,6 +361,7 @@ class Renderer3D:
                 if mat is None:
                     continue
                 vertices, faces = mat
+                print(vertices)
                 for face in faces:
                     p0 = vertices[face[0]]
                     p1 = vertices[face[1]]

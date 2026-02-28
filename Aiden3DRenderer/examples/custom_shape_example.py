@@ -110,6 +110,7 @@ def main():
     renderer.is_mesh = True
     # Run
     renderer.run()
+    
 
 
 if __name__ == "__main__":

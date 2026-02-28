@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="aiden3drenderer",
-    version="1.2.3",
+    version="1.3.2",
     author="Aiden",
     author_email="headstone.yt@gmail.com",
     description="A lightweight 3D wireframe renderer built from scratch using Pygame",
@@ -27,6 +27,8 @@ setup(
     install_requires=[
         "pygame>=2.6.0",
         "pywavefront>=1.3.3",
+        "numpy>=2.4.2",
+        "opencv-python>=4.13.0.90"
     ],
     extras_require={
         "dev": ["pytest>=7.0", "black", "flake8"],
