@@ -382,6 +382,51 @@ if __name__ == "__main__":
 ### About:
 You can import 3D models from .obj files as shown above, however the rendering is very glitchy. I've tried fixing it for a very long time but am unable. Assistance/feedback is greatly apreciated.
 
+## Video Renderer
+
+A lightweight video renderer was added to convert OBJ models into video frames using the same projection pipeline as the main renderer. It supports per-object rotations and basic per-triangle rasterization.
+
+- **Status:** experimental — not very fast yet and currently shows some rasterization artifacts (visible seams and occasional overdraw). These issues are known and will be fixed in future updates.
+
+### Basic usage
+
+```python
+from aiden3drenderer.video_renderer import VideoRenderer3D, VideoRendererObject
+
+# Create an object wrapper pointing to an OBJ file
+obj = VideoRendererObject("assets/alloy_forge_block.obj")
+# rotations_per_seccond is degrees-per-second around X, Y, Z
+obj.rotations_per_seccond = [10, 25, 0]
+obj.rotation = [0, 0, 0]
+
+# Create renderer and render a short clip
+vr = VideoRenderer3D(width=800, height=600, fps=30, shapes=[obj])
+vr.render("out.avi", duration_s=5, verbose=True)
+```
+
+### Multiple objects / advanced
+
+```python
+from aiden3drenderer.video_renderer import VideoRenderer3D, VideoRendererObject
+
+o1 = VideoRendererObject("assets/model1.obj")
+o1.rotations_per_seccond = [0, 40, 0]
+
+o2 = VideoRendererObject("assets/model2.obj")
+o2.rotations_per_seccond = [10, 0, 5]
+
+# when having multiple objects, for now the farther object must be put first th the list
+vr = VideoRenderer3D(width=1200, height=800, fps=24, shapes=[o2, o1])
+vr.render("multiples.avi", duration_s=10, verbose=True)
+```
+
+Notes & tips:
+
+- For now, prefer lower resolutions (e.g., 800×600) and lower FPS while the renderer is being optimized.
+- If you see seams or diagonal artifacts, those are rasterization/draw-order issues; sorting faces by depth or switching to OpenCV polygon fills can remove most artifacts.
+- The `VideoRenderer3D` API is experimental and may change; contributions and PRs are welcome.
+
+
 ## Controls
 
 ### Camera Movement
