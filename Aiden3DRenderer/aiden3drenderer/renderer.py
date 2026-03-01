@@ -6,6 +6,7 @@ import pygame
 from pygame import QUIT
 import sys
 import importlib
+from enum import Enum
 
 from .camera import Camera
 
@@ -21,6 +22,11 @@ def register_shape(name: str, key=None, is_animated: bool = False, color: tuple[
         }
         return func
     return decorator
+
+class renderer_type(Enum):
+    RASTERIZE = "rasterize"
+    POLYGON_FILL = "polygon_fill"
+    MESH = "mesh"
 
 class Renderer3D:
     
@@ -46,7 +52,7 @@ class Renderer3D:
 
         self.is_starting = True
 
-        self.is_mesh = True
+        self.render_type = renderer_type.MESH
         self.triangle_base_color_1= (150, 0, 150)
         self.triangle_base_color_2 = (50, 0, 50)
         self.triangle_color_list_1= []
@@ -62,6 +68,8 @@ class Renderer3D:
         self._default_shape_names = set()
         self._default_shapes_loaded = False
 
+        self.rasterization_size: tuple[int] = (100, 100)
+
         if load_default_shapes:
             before = set(CUSTOM_SHAPES.keys())
             try:
@@ -72,6 +80,9 @@ class Renderer3D:
             after = set(CUSTOM_SHAPES.keys())
             self._default_shape_names = after - before
             self._default_shapes_loaded = bool(self._default_shape_names)
+
+    def set_render_type(self, type: renderer_type):
+        self.render_type = type
 
     def normalize(self, v):
         length = math.sqrt(v[0]**2 + v[1]**2 + v[2]**2)
@@ -166,9 +177,9 @@ class Renderer3D:
                     row.append(None)
                     continue
                 
-                if self.is_mesh:
+                if self.render_type == renderer_type.MESH:
                     row.append((px, py))
-                else:
+                elif self.render_type == renderer_type.POLYGON_FILL:
                     row.append((px, py, z3))
             projected.append(row)
 
@@ -222,15 +233,17 @@ class Renderer3D:
                 projected.append(None)
                 continue
             
-            if self.is_mesh:
+            if self.render_type == renderer_type.MESH:
                 projected.append((px, py))
-            else:
+            elif self.render_type == renderer_type.POLYGON_FILL:
+                projected.append((px, py, z3))
+            elif self.render_type == renderer_type.RASTERIZE:
                 projected.append((px, py, z3))
 
         return projected
     
     def render_wireframe(self, matrix):
-        if self.is_mesh:
+        if self.render_type == renderer_type.MESH:
             if matrix is None:
                 return
             for xIdx in range(len(matrix)):
@@ -250,7 +263,7 @@ class Renderer3D:
 
                         for p in points:
                             pygame.draw.line(self.screen, (0, 0, 0), point, p, 2)
-        else:
+        elif self.render_type == renderer_type.POLYGON_FILL:
             all_tris = []
             for matI in range(len(matrix)):
                 mat = matrix[matI]
@@ -297,7 +310,104 @@ class Renderer3D:
                 )
 
     def render_shape_from_obj_format(self, matrix):
-        if not self.is_mesh:
+        if self.render_type == renderer_type.RASTERIZE:
+            all_tris = []
+            s = True
+            for matI in range(len(matrix)):
+                mat = matrix[matI]
+                if mat is None:
+                    continue
+                vertices, faces = mat
+                unprojected_verticies, same_faces = self.vertices_faces_list[matI]
+                for face in faces:
+                    p0 = vertices[face[0]]
+                    p1 = vertices[face[1]]
+                    p2 = vertices[face[2]]
+
+                    if None in (p0, p1, p2):
+                        continue
+                    if p0[2] <= 0.1 or p1[2] <= 0.1 or p2[2] <= 0.1:
+                        continue
+
+                    # Consistent depth: average of projected Z
+                    depths = (p0[2], p1[2], p2[2])
+
+                    up0 = unprojected_verticies[face[0]]
+                    up1 = unprojected_verticies[face[1]]
+                    up2 = unprojected_verticies[face[2]]
+
+                    unprojected_normal = self.normalT_camera_space((up0, up1, up2))
+                    # Only cull if normal clearly faces away — flip sign if needed
+                    up0,up1,up2 = self.to_cam_space(up0), self.to_cam_space(up1), self.to_cam_space(up2)
+                    if None in (up0, up1, up2):
+                        continue
+                    normal = self.normalT_camera_space((up0, up1, up2))
+
+                    if normal[2] >= 0:
+                        continue
+                    if unprojected_normal[0] > 0:
+                        col = (255, 0, 0)
+                    elif unprojected_normal[0] < 0:
+                        col = (155, 0, 0)
+                    elif unprojected_normal[1] > 0:
+                        col = (0, 255, 0)
+                    elif unprojected_normal[1] < 0:
+                        col = (0, 155, 0)
+                    elif unprojected_normal[2] > 0:
+                        col = (0, 0, 255)
+                    elif unprojected_normal[2] < 0:
+                        col = (0, 0, 155)
+
+                    view_dir = (0, 0, 1)  # if camera faces +Z in camera space
+                    dot = normal[0]*view_dir[0] + normal[1]*view_dir[1] + normal[2]*view_dir[2]
+                    if dot >= 0:
+                        continue
+                    
+                    # backface culling
+                    #-----
+
+                    #col = self.triangle_base_color_1 if s else self.triangle_base_color_2
+                    s = not s
+                    all_tris.append((depths, (p0, p1, p2), col))
+
+            all_tris.sort(key=lambda t: t[0], reverse=True)
+            raster_w, raster_h = self.rasterization_size
+            z_buf = [math.inf for i in range(raster_w * raster_h)]
+            pixel_size_x = self.width / float(raster_w)
+            pixel_size_y = self.height / float(raster_h)
+            # integer pixel block to fill on the screen for each raster cell
+            block_w = max(1, int(math.ceil(pixel_size_x)))
+            block_h = max(1, int(math.ceil(pixel_size_y)))
+            for y in range(raster_h):
+                for x in range(raster_w):
+                    buf_index = y * raster_w + x
+                    for depths, tri, col in all_tris:
+                        p0 = tri[0]
+                        p1 = tri[1]
+                        p2 = tri[2]
+
+                        # convert triangle screen coords into raster grid coords
+                        p0r = (p0[0] / pixel_size_x, p0[1] / pixel_size_y)
+                        p1r = (p1[0] / pixel_size_x, p1[1] / pixel_size_y)
+                        p2r = (p2[0] / pixel_size_x, p2[1] / pixel_size_y)
+
+                        if self.is_point_inside_triangle(p0r, p1r, p2r, (x, y)):
+                            depth = self.depth_in_tri((p0r, p1r, p2r), (x, y), depths)
+                            if z_buf[buf_index] > depth:
+                                z_buf[buf_index] = depth
+                                # map raster cell (x,y) back to screen block and fill
+                                start_x = int(x * pixel_size_x)
+                                start_y = int(y * pixel_size_y)
+                                for i in range(block_w):
+                                    sx = start_x + i
+                                    if sx < 0 or sx >= self.width:
+                                        continue
+                                    for j in range(block_h):
+                                        sy = start_y + j
+                                        if sy < 0 or sy >= self.height:
+                                            continue
+                                        self.screen.set_at((sx, sy), col)
+        elif self.render_type == renderer_type.POLYGON_FILL:
             all_tris = []
             s = True
             for matI in range(len(matrix)):
@@ -355,13 +465,20 @@ class Renderer3D:
             all_tris.sort(key=lambda t: t[0], reverse=True)
             for _, tri, col in all_tris:
                 pygame.draw.polygon(self.screen, col, [(v[0], v[1]) for v in tri], 0)
-        else:
+        elif self.render_type == renderer_type.MESH:
             for matI in range(len(matrix)):
                 mat = matrix[matI]
                 if mat is None:
                     continue
                 vertices, faces = mat
-                print(vertices)
+                # Try to get the original 3D vertices for proper backface culling
+                unprojected_vertices = None
+                if matI < len(self.vertices_faces_list):
+                    try:
+                        unprojected_vertices, _ = self.vertices_faces_list[matI]
+                    except Exception:
+                        unprojected_vertices = None
+
                 for face in faces:
                     p0 = vertices[face[0]]
                     p1 = vertices[face[1]]
@@ -369,9 +486,84 @@ class Renderer3D:
                     if None in (p0, p1, p2):
                         continue
 
+                    # Backface culling: if we have original 3D verts, compute normal in camera space
+                    # and skip faces that face away from the camera.
+                    skip_face = False
+                    if unprojected_vertices is not None:
+                        up0 = unprojected_vertices[face[0]]
+                        up1 = unprojected_vertices[face[1]]
+                        up2 = unprojected_vertices[face[2]]
+                        if None in (up0, up1, up2):
+                            skip_face = True
+                        else:
+                            cu0 = self.to_cam_space(up0)
+                            cu1 = self.to_cam_space(up1)
+                            cu2 = self.to_cam_space(up2)
+                            if None in (cu0, cu1, cu2):
+                                skip_face = True
+                            else:
+                                normal = self.normalT_camera_space((cu0, cu1, cu2))
+                                # If normal's Z component faces away (positive), cull
+                                if normal[2] >= 0:
+                                    skip_face = True
+
+                    if skip_face:
+                        continue
+
                     pygame.draw.line(self.screen, (0, 0, 0), p0, p1, 2)
                     pygame.draw.line(self.screen, (0, 0, 0), p1, p2, 2)
                     pygame.draw.line(self.screen, (0, 0, 0), p2, p0, 2)
+
+    def depth_in_tri(self, tri, point, depths):
+        t_p0 = tri[0]
+        t_p1 = tri[1]
+        t_p2 = tri[2]
+        # Compute barycentric weights using triangle sub-areas, then interpolate depth.
+        # weight for p0 = area(p1,p2,P) / area(p0,p1,p2)
+        a0 = self.tri_area(t_p1, t_p2, point)
+        a1 = self.tri_area(t_p2, t_p0, point)
+        a2 = self.tri_area(t_p0, t_p1, point)
+
+        total = self.tri_area(t_p0, t_p1, t_p2)
+        if total == 0:
+            return math.inf
+
+        w0 = a0 / total
+        w1 = a1 / total
+        w2 = a2 / total
+
+        depth = w0 * depths[0] + w1 * depths[1] + w2 * depths[2]
+
+        return depth
+
+    def tri_area(self, p1, p2, p3):
+        x1 = p1[0]
+        x2 = p2[0]
+        x3 = p3[0]
+        y1 = p1[1]
+        y2 = p2[1]
+        y3 = p3[1]
+        return 0.5 * abs(x1*(y2-y3)+x2*(y3-y1)+x3*(y1-y2))
+
+    def dot(self, p1, p2, p3):
+        tri_vec = (p2[0] - p1[0], p2[1] - p1[1])
+        other_vec = (p3[0] - p1[0], p3[1] - p1[1])
+
+        rotated_vec = (tri_vec[1], -tri_vec[0])
+
+        return other_vec[0] * rotated_vec[0] + other_vec[1] * rotated_vec[1]
+
+    
+    def is_point_inside_triangle(self, p0, p1, p2, point):
+        #print(p0,p1,p2)
+        d1 = self.dot(p0, p1, point)
+        d2 = self.dot(p1, p2, point)
+        d3 = self.dot(p2, p0, point)
+
+        if d1 >= 0 and d2 >= 0 and d3 >= 0:
+            return True
+        
+        return False
 
     def to_cam_space(self, point):
         x = point[0]
@@ -490,9 +682,9 @@ class Renderer3D:
                         )
                         self.projections_list.append(projected)
 
-                if not self.is_mesh:
+                if self.render_type == renderer_type.POLYGON_FILL:
                     self.render_wireframe(self.projections_list)
-                else:
+                elif self.render_type == renderer_type.MESH:
                     for proj in self.projections_list:
                         self.render_wireframe(proj)
             else:
@@ -555,9 +747,9 @@ class Renderer3D:
                     )
                     self.projections_list.append(projected)
 
-            if not self.is_mesh:
+            if self.render_type == renderer_type.POLYGON_FILL:
                 self.render_wireframe(self.projections_list)
-            else:
+            elif self.render_type == renderer_type.MESH:
                 for proj in self.projections_list:
                     self.render_wireframe(proj)
         else:
