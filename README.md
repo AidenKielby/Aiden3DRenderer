@@ -14,6 +14,7 @@ A lightweight 3D wireframe renderer built with Pygame featuring custom projectio
 - **Custom Colors** - Ability to change colors on a per shape basis
 - **Simple Physics Engine** - easy to add physics to your render
 - **Obj Model Loading** - simple obj model loading
+- **Simple Rasterization** -- simple and slow rasterization for video_renderer and renderer
 
 ## Gallery
 
@@ -124,7 +125,7 @@ renderer = Renderer3D()
 # Above would give the renderer that title and the renderer would not use default shapes
 renderer.camera.position = [0, 0 ,0]
 # is_mesh = True for mesh, False for solid colors
-renderer.is_mesh = False
+renderer.render_type = renderer_type.POLYGON_FILL
 renderer.run()
 ```
 
@@ -136,7 +137,7 @@ from aiden3drenderer import Renderer3D
 renderer = Renderer3D()
 renderer.camera.position = [0, 0 ,0]
 # is_mesh = True for mesh, False for solid colors
-renderer.is_mesh = False
+renderer.render_type = renderer_type.POLYGON_FILL
 
 while True:
     # renderer.set_use_default_shapes(bool)
@@ -152,7 +153,7 @@ from aiden3drenderer import Renderer3D
 # Simple gravity with set floor height
 renderer = Renderer3D()
 renderer.camera.position = [0, 0 ,0]
-renderer.is_mesh = False
+renderer.render_type = renderer_type.POLYGON_FILL
 gravity = 0.05
 floor_height = 0.1
 camera_height = 2
@@ -276,7 +277,7 @@ def main():
     renderer.set_starting_shape(None)
 
     renderer.camera.position = [0, 0 ,0]
-    renderer.is_mesh = False
+    renderer.render_type = renderer_type.POLYGON_FILL
     # Run the renderer
 
     while True:
@@ -334,7 +335,7 @@ def main():
     obj_handler.add_shape(ball2)
 
     renderer.set_starting_shape(None)
-    renderer.is_mesh = False
+    renderer.render_type = renderer_type.POLYGON_FILL
     renderer.camera.base_speed = 1.2
 
     while True:
@@ -363,7 +364,7 @@ def main():
     renderer.current_shape = None
 
     renderer.camera.position = [0, 0, 0]
-    renderer.is_mesh = False
+    renderer.render_type = renderer_type.POLYGON_FILL
     renderer.using_obj_filetype_format = True
 
     obj = obj_loader.get_obj("./assets/alloy_forge_block.obj")
@@ -650,5 +651,6 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 Free to use and modify.
+
 
 
