@@ -117,7 +117,7 @@ Requires Python 3.11+ and automatically installs Pygame 2.6.0+
 
 #### Original Demo
 ```python
-from aiden3drenderer import Renderer3D
+from aiden3drenderer import Renderer3D, renderer_type
 
 # Create and run the renderer with all built-in shapes
 renderer = Renderer3D()
@@ -131,7 +131,7 @@ renderer.run()
 
 #### Looped Demo
 ```python
-from aiden3drenderer import Renderer3D
+from aiden3drenderer import Renderer3D, renderer_type
 
 # Create and run the renderer with all built-in shapes
 renderer = Renderer3D()
@@ -147,7 +147,7 @@ while True:
 
 ### Looped Run Usage Example
 ```python
-from aiden3drenderer import Renderer3D
+from aiden3drenderer import Renderer3D, renderer_type
 
 # Create and run the renderer with all built-in shapes
 # Simple gravity with set floor height
@@ -248,7 +248,7 @@ This makes it easy to create interactive demos, simple games, or visualizations 
 
 #### 2 balls colliding:
 ```python
-from aiden3drenderer import Renderer3D, register_shape, physics
+from aiden3drenderer import Renderer3D, register_shape, physics, renderer_type
 import pygame
 import math
 
@@ -292,7 +292,7 @@ if __name__ == "__main__":
 
 #### 2 balls in a box, camera physics too:
 ```python
-from aiden3drenderer import Renderer3D, physics
+from aiden3drenderer import Renderer3D, physics, renderer_type
 
 
 def main():
@@ -354,7 +354,7 @@ if __name__ == "__main__":
 ## Obj Loading
 ### Examples:
 ```python
-from aiden3drenderer import Renderer3D, obj_loader
+from aiden3drenderer import Renderer3D, obj_loader, renderer_type
 
 def main():
     # Create the renderer
@@ -651,6 +651,7 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 Free to use and modify.
+
 
 
 
