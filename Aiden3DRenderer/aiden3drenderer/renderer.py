@@ -7,6 +7,7 @@ from pygame import QUIT
 import sys
 import importlib
 from enum import Enum
+import numpy as np
 
 from .camera import Camera
 
@@ -131,6 +132,14 @@ class Renderer3D:
         #print(len(self.grid_coords_list))
         if matrix is None:
             return None
+        # Cache trig values and projection factor per-call to avoid repeated math calls
+        cos_y = math.cos(camera_facing[1])
+        sin_y = math.sin(camera_facing[1])
+        cos_x = math.cos(camera_facing[0])
+        sin_x = math.sin(camera_facing[0])
+        cos_z = math.cos(camera_facing[2])
+        sin_z = math.sin(camera_facing[2])
+        f = 1 / math.tan(fov / 2)
         for xIdx in range(len(matrix)):
             xList = matrix[xIdx]
             row = []
@@ -149,23 +158,22 @@ class Renderer3D:
                 y -= camera_pos[1]
                 z -= camera_pos[2]
 
-                x1 = x * math.cos(camera_facing[1]) + z * math.sin(camera_facing[1])
+                x1 = x * cos_y + z * sin_y
                 y1 = y
-                z1 = -x * math.sin(camera_facing[1]) + z * math.cos(camera_facing[1])
+                z1 = -x * sin_y + z * cos_y
 
                 x2 = x1
-                y2 = y1 * math.cos(camera_facing[0]) - z1 * math.sin(camera_facing[0])
-                z2 = y1 * math.sin(camera_facing[0]) + z1 * math.cos(camera_facing[0])
+                y2 = y1 * cos_x - z1 * sin_x
+                z2 = y1 * sin_x + z1 * cos_x
 
-                x3 = x2 * math.cos(camera_facing[2]) - y2 * math.sin(camera_facing[2])
-                y3 = x2 * math.sin(camera_facing[2]) + y2 * math.cos(camera_facing[2])
+                x3 = x2 * cos_z - y2 * sin_z
+                y3 = x2 * sin_z + y2 * cos_z
                 z3 = z2
 
                 if z3 <= 0.1:
                     row.append(None)
                     continue
 
-                f = 1 / math.tan(fov / 2)
                 dd_x = (x3 * f) / -z3
                 dd_y = (y3 * f) / -z3
 
@@ -190,6 +198,14 @@ class Renderer3D:
         #print(len(self.grid_coords_list))
         if inList is None:
             return None
+        # Cache trig values and projection factor per-call to avoid repeated math calls
+        cos_y = math.cos(camera_facing[1])
+        sin_y = math.sin(camera_facing[1])
+        cos_x = math.cos(camera_facing[0])
+        sin_x = math.sin(camera_facing[0])
+        cos_z = math.cos(camera_facing[2])
+        sin_z = math.sin(camera_facing[2])
+        f = 1 / math.tan(fov / 2)
         for xIdx in range(len(inList)):
             point = inList[xIdx]
 
@@ -205,23 +221,22 @@ class Renderer3D:
             y -= camera_pos[1]
             z -= camera_pos[2]
 
-            x1 = x * math.cos(camera_facing[1]) + z * math.sin(camera_facing[1])
+            x1 = x * cos_y + z * sin_y
             y1 = y
-            z1 = -x * math.sin(camera_facing[1]) + z * math.cos(camera_facing[1])
+            z1 = -x * sin_y + z * cos_y
 
             x2 = x1
-            y2 = y1 * math.cos(camera_facing[0]) - z1 * math.sin(camera_facing[0])
-            z2 = y1 * math.sin(camera_facing[0]) + z1 * math.cos(camera_facing[0])
+            y2 = y1 * cos_x - z1 * sin_x
+            z2 = y1 * sin_x + z1 * cos_x
 
-            x3 = x2 * math.cos(camera_facing[2]) - y2 * math.sin(camera_facing[2])
-            y3 = x2 * math.sin(camera_facing[2]) + y2 * math.cos(camera_facing[2])
+            x3 = x2 * cos_z - y2 * sin_z
+            y3 = x2 * sin_z + y2 * cos_z
             z3 = z2
 
             if z3 <= 0.1:
                 projected.append(None)
                 continue
 
-            f = 1 / math.tan(fov / 2)
             dd_x = (x3 * f) / -z3
             dd_y = (y3 * f) / -z3
 
@@ -326,7 +341,8 @@ class Renderer3D:
 
                     if None in (p0, p1, p2):
                         continue
-                    if p0[2] <= 0.1 or p1[2] <= 0.1 or p2[2] <= 0.1:
+                    near_plane = 0.01  # or something small
+                    if max(p0[2], p1[2], p2[2]) <= near_plane:
                         continue
 
                     # Consistent depth: average of projected Z
@@ -348,26 +364,23 @@ class Renderer3D:
                     if unprojected_normal[0] > 0:
                         col = (255, 0, 0)
                     elif unprojected_normal[0] < 0:
-                        col = (155, 0, 0)
+                        col = (55, 55, 0)
                     elif unprojected_normal[1] > 0:
                         col = (0, 255, 0)
                     elif unprojected_normal[1] < 0:
-                        col = (0, 155, 0)
+                        col = (0, 55, 55)
                     elif unprojected_normal[2] > 0:
                         col = (0, 0, 255)
                     elif unprojected_normal[2] < 0:
-                        col = (0, 0, 155)
+                        col = (55, 0, 55)
 
-                    view_dir = (0, 0, 1)  # if camera faces +Z in camera space
+                    """view_dir = (0, 0, 1)  # if camera faces +Z in camera space
                     dot = normal[0]*view_dir[0] + normal[1]*view_dir[1] + normal[2]*view_dir[2]
-                    if dot >= 0:
-                        continue
-                    
-                    # backface culling
-                    #-----
+                    if dot >= 1:
+                        continue"""
 
                     #col = self.triangle_base_color_1 if s else self.triangle_base_color_2
-                    s = not s
+                    #s = not s
                     all_tris.append((depths, (p0, p1, p2), col))
 
             all_tris.sort(key=lambda t: t[0], reverse=True)
@@ -378,18 +391,26 @@ class Renderer3D:
             # integer pixel block to fill on the screen for each raster cell
             block_w = max(1, int(math.ceil(pixel_size_x)))
             block_h = max(1, int(math.ceil(pixel_size_y)))
-            for y in range(raster_h):
-                for x in range(raster_w):
-                    buf_index = y * raster_w + x
-                    for depths, tri, col in all_tris:
-                        p0 = tri[0]
-                        p1 = tri[1]
-                        p2 = tri[2]
+            framebuffer = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+            for depths, tri, col in all_tris:
+                p0 = tri[0]
+                p1 = tri[1]
+                p2 = tri[2]
+                
+                p0r = (p0[0] / pixel_size_x, p0[1] / pixel_size_y)
+                p1r = (p1[0] / pixel_size_x, p1[1] / pixel_size_y)
+                p2r = (p2[0] / pixel_size_x, p2[1] / pixel_size_y)
+                
+                min_x = max(int(min(p0r[0], p1r[0], p2r[0])), 0)
+                max_x = min(int(max(p0r[0], p1r[0], p2r[0])) + 1, raster_w)
+
+                min_y = max(int(min(p0r[1], p1r[1], p2r[1])), 0)
+                max_y = min(int(max(p0r[1], p1r[1], p2r[1])) + 1, raster_h)
+                for y in range(min_y, max_y):
+                    for x in range(min_x, max_x):
+                        buf_index = y * raster_w + x
 
                         # convert triangle screen coords into raster grid coords
-                        p0r = (p0[0] / pixel_size_x, p0[1] / pixel_size_y)
-                        p1r = (p1[0] / pixel_size_x, p1[1] / pixel_size_y)
-                        p2r = (p2[0] / pixel_size_x, p2[1] / pixel_size_y)
 
                         if self.is_point_inside_triangle(p0r, p1r, p2r, (x, y)):
                             depth = self.depth_in_tri((p0r, p1r, p2r), (x, y), depths)
@@ -406,7 +427,8 @@ class Renderer3D:
                                         sy = start_y + j
                                         if sy < 0 or sy >= self.height:
                                             continue
-                                        self.screen.set_at((sx, sy), col)
+                                        framebuffer[sx, sy] = col
+            pygame.surfarray.blit_array(self.screen, framebuffer)
         elif self.render_type == renderer_type.POLYGON_FILL:
             all_tris = []
             s = True
@@ -560,7 +582,7 @@ class Renderer3D:
         d2 = self.dot(p1, p2, point)
         d3 = self.dot(p2, p0, point)
 
-        if d1 >= 0 and d2 >= 0 and d3 >= 0:
+        if (d1 >= 0 and d2 >= 0 and d3 >= 0) or (d1 <= 0 and d2 <= 0 and d3 <= 0):
             return True
         
         return False
@@ -650,6 +672,8 @@ class Renderer3D:
             self.screen.fill((255, 255, 255))
             self.clock.tick(60)
             self.animation_time += 0.01
+            # Precompute FOV radians once per frame
+            fov_rad = math.radians(100)
             
             # Handle events
             for event in pygame.event.get():
@@ -676,7 +700,7 @@ class Renderer3D:
                     if self.grid_coords:
                         projected = self.project_3d_to_2d(
                             self.grid_coords[0],
-                            math.radians(100),
+                            fov_rad,
                             tuple(self.camera.position),
                             tuple(self.camera.rotation)
                         )
@@ -691,7 +715,7 @@ class Renderer3D:
                 for i in range(len(self.vertices_faces_list)):
                     projected = self.project_3d_to_2d_flat(
                             self.vertices_faces_list[i][0],
-                            math.radians(100),
+                            fov_rad,
                             tuple(self.camera.position),
                             tuple(self.camera.rotation)
                         )
@@ -714,7 +738,8 @@ class Renderer3D:
         self.screen.fill((255, 255, 255))
         self.clock.tick(60)
         self.animation_time += 0.01
-        
+        # Precompute FOV radians once per frame
+        fov_rad = math.radians(100)
         # Handle events
         for event in pygame.event.get():
             if event.type == QUIT:
@@ -741,7 +766,7 @@ class Renderer3D:
                 if self.grid_coords:
                     projected = self.project_3d_to_2d(
                         self.grid_coords[0],
-                        math.radians(100),
+                        fov_rad,
                         tuple(self.camera.position),
                         tuple(self.camera.rotation)
                     )
@@ -756,7 +781,7 @@ class Renderer3D:
             for i in range(len(self.vertices_faces_list)):
                 projected = self.project_3d_to_2d_flat(
                         self.vertices_faces_list[i][0],
-                        math.radians(100),
+                        fov_rad,
                         tuple(self.camera.position),
                         tuple(self.camera.rotation)
                     )
