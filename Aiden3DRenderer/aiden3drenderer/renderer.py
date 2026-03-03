@@ -130,7 +130,7 @@ void main() {
     vec2 p_center = vec2(pixel_coords) + 0.5;
 
     float best_depth = 1e38;
-    vec3 best_color = vec3(0.0);
+    vec3 best_color = vec3(1.0);
 
     uint num_tris = min(tri_count, uint(tris.length()));
     uint local_id = gl_LocalInvocationIndex; // 0 to 255
@@ -164,6 +164,9 @@ void main() {
 
     if (z_int <= old_z) {
         imageStore(destTex, pixel_coords, vec4(best_color, 1.0));
+    }
+    else{
+        imageStore(destTex, pixel_coords, vec4(1.0, 1.0, 1.0, 1.0));
     }
 }
 
@@ -214,8 +217,6 @@ class Renderer3D:
         self.is_using_default_shapes = load_default_shapes
         self._default_shape_names = set()
         self._default_shapes_loaded = False
-
-        self.rasterization_size: tuple[int] = (100, 100)
 
         if load_default_shapes:
             before = set(CUSTOM_SHAPES.keys())
@@ -512,6 +513,8 @@ class Renderer3D:
                     up0 = unprojected_verticies[face[0]]
                     up1 = unprojected_verticies[face[1]]
                     up2 = unprojected_verticies[face[2]]
+                    if None in (up0, up1, up2):
+                        continue
 
                     unprojected_normal = self.normalT_camera_space((up0, up1, up2))
                     # Only cull if normal clearly faces away — flip sign if needed
@@ -598,8 +601,8 @@ class Renderer3D:
                         continue
                     normal = self.normalT_camera_space((up0, up1, up2))
 
-                    if normal[2] >= 0:
-                        continue
+                    """if normal[2] >= 0:
+                        continue"""
                     if unprojected_normal[0] > 0:
                         col = (255, 0, 0)
                     elif unprojected_normal[0] < 0:
@@ -664,8 +667,8 @@ class Renderer3D:
                             else:
                                 normal = self.normalT_camera_space((cu0, cu1, cu2))
                                 # If normal's Z component faces away (positive), cull
-                                if normal[2] >= 0:
-                                    skip_face = True
+                                """if normal[2] >= 0:
+                                    skip_face = True"""
 
                     if skip_face:
                         continue

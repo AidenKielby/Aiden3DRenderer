@@ -1,6 +1,7 @@
 import pywavefront
+import numpy as np
 
-def get_obj(file_path: str):
+def get_obj(file_path: str, offset: tuple[int] = (0, 0, 0)):
     scene = pywavefront.Wavefront(file_path, collect_faces=True)
 
     vertices = scene.vertices
@@ -16,4 +17,6 @@ def get_obj(file_path: str):
                 for i in range(1, len(face) - 1):
                     faces.append((face[0], face[i], face[i + 1]))
 
+    vertices = np.array(vertices) + offset
+    vertices = vertices.tolist()
     return [vertices, faces]
