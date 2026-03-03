@@ -8,6 +8,7 @@ import sys
 import importlib
 from enum import Enum
 import numpy as np
+import moderngl
 
 from .camera import Camera
 
@@ -28,6 +29,151 @@ class renderer_type(Enum):
     RASTERIZE = "rasterize"
     POLYGON_FILL = "polygon_fill"
     MESH = "mesh"
+
+compute_shader_for_rasterization = """
+#version 430
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+struct Triangle {
+    vec2 pos1;    // 0  - 8  bytes
+    vec2 pos2;    // 8  - 16 bytes 
+    vec2 pos3;    // 16 - 24 bytes 
+    
+    float d1;     // 24 - 28 bytes (Depth for p1)
+    float d2;     // 28 - 32 bytes (Depth for p2)
+    float d3;     // 32 - 36 bytes (Depth for p3)
+    
+    // We use three floats for RGB because a vec3 would force
+    // the GPU to skip 12 bytes of padding to find a 16-byte boundary.
+    float r;      // 36 - 40 bytes
+    float g;      // 40 - 44 bytes
+    float b;
+};
+
+layout(std430, binding = 0) buffer triangle_data {
+    Triangle tris[];
+};
+
+layout(std430, binding = 1) buffer DepthBuffer {
+    uint pixel_depths[]; // Store as fixed-point integers for atomicMin
+};
+
+layout(rgba32f, binding = 0) writeonly uniform image2D destTex;
+uniform uint tri_count;
+
+shared Triangle local_tris[256];
+
+float dot(vec2 p1, vec2 p3, vec2 p2) {
+    vec2 tri_vec = p2-p1;
+    vec2 other_vec = p3 - p1;
+
+    return tri_vec.x * other_vec.y - tri_vec.y * other_vec.x;
+}   
+
+bool is_point_in_tri(vec2 p0, vec2 p1, vec2 p2, vec2 point) {
+    float d1 = dot(p0, p1, point);
+    float d2 = dot(p1, p2, point);
+    float d3 = dot(p2, p0, point);
+
+    bool has_neg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+    bool has_pos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+    
+    return !(has_neg && has_pos);
+}  
+
+float tri_area(vec2 p1, vec2 p2, vec2 p3){
+    vec2 a = p2 - p1;
+    vec2 b = p3 - p1;
+    // The magnitude of the cross product of two vectors 
+    // is the area of the parallelogram they form. 
+    // Half of that is the triangle area.
+    return 0.5 * abs(a.x * b.y - a.y * b.x);
+}
+
+float cross2d(vec2 a, vec2 b) {
+    return a.x * b.y - a.y * b.x;
+}
+
+float depth_in_tri(vec2 p0, vec2 p1, vec2 p2, vec2 point, vec3 depths) {
+    vec2 v0 = p1 - p0;
+    vec2 v1 = p2 - p0;
+    vec2 v2 = point - p0;
+
+    // Total area (technically double the area, but ratios remain the same)
+    float total = cross2d(v0, v1);
+
+    // Prevent division by zero for degenerate triangles
+    if (abs(total) < 0.00001) {
+        return 1e38; // GLSL equivalent of infinity
+    }
+
+    // Barycentric coordinates (weights)
+    // We use the vectors from the vertices to the point
+    float w1 = cross2d(v2, v1) / total;
+    float w2 = cross2d(v0, v2) / total;
+    float w0 = 1.0 - w1 - w2;
+
+    // Interpolate depth using the weights
+    // depths.x = depth at p0, depths.y = depth at p1, depths.z = depth at p2
+    float depth = w0 * depths.x + w1 * depths.y + w2 * depths.z;
+
+    return depth;
+}
+
+void main() {
+    ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 dims = imageSize(destTex);
+    if (pixel_coords.x >= dims.x || pixel_coords.y >= dims.y) return;
+
+    uint pixel_index = pixel_coords.y * dims.x + pixel_coords.x;
+    vec2 p_center = vec2(pixel_coords) + 0.5;
+
+    float best_depth = 1e38;
+    vec3 best_color = vec3(0.0);
+
+    uint num_tris = min(tri_count, uint(tris.length()));
+    uint local_id = gl_LocalInvocationIndex; // 0 to 255
+
+    // LOOP IN CHUNKS OF 256
+    for (uint i = 0; i < num_tris; i += 256) {
+        if (i + local_id < num_tris) {
+            local_tris[local_id] = tris[i + local_id];
+        }
+        
+        barrier(); // Wait for all threads to finish loading
+
+        uint limit = min(256, num_tris - i);
+        for (uint j = 0; j < limit; j++) {
+            if (is_point_in_tri(local_tris[j].pos1, local_tris[j].pos2, local_tris[j].pos3, p_center)) {
+                vec3 ds = vec3(local_tris[j].d1, local_tris[j].d2, local_tris[j].d3);
+                float d = depth_in_tri(local_tris[j].pos1, local_tris[j].pos2, local_tris[j].pos3, p_center, ds);
+                
+                if (d < best_depth) {
+                    best_depth = d;
+                    best_color = vec3(local_tris[j].r, local_tris[j].g, local_tris[j].b);
+                }
+            }
+        }
+        
+        barrier(); // Wait before loading the next chunk
+    }
+
+    uint z_int = uint(best_depth * 1000000.0);
+    uint old_z = atomicMin(pixel_depths[pixel_index], z_int);
+
+    if (z_int <= old_z) {
+        imageStore(destTex, pixel_coords, vec4(best_color, 1.0));
+    }
+}
+
+"""
+
+tri_dtype = np.dtype([
+    ('pos', 'f4', (3, 2)),    # 3 positions (x, y)
+    ('depths', 'f4', 3),      # 3 depth values
+    ('colors', 'f4', 3),      # r, g, b
+])
 
 class Renderer3D:
     
@@ -81,6 +227,19 @@ class Renderer3D:
             after = set(CUSTOM_SHAPES.keys())
             self._default_shape_names = after - before
             self._default_shapes_loaded = bool(self._default_shape_names)
+
+        self.ctx = moderngl.create_context(standalone=True)
+        
+        self.compute_shader = self.ctx.compute_shader(compute_shader_for_rasterization)
+        
+        self.output_tex = self.ctx.texture((width, height), 4, dtype='f4')
+
+        self._output_clear_rgba = np.ones((height, width, 4), dtype=np.float32)
+        
+        self.depth_init_data = np.full(width * height, np.iinfo(np.uint32).max, dtype='u4')
+        self.depth_buffer = self.ctx.buffer(self.depth_init_data.tobytes())
+        
+        self.tri_buffer = self.ctx.buffer(reserve=tri_dtype.itemsize * 10000)
 
     def set_render_type(self, type: renderer_type):
         self.render_type = type
@@ -326,6 +485,8 @@ class Renderer3D:
 
     def render_shape_from_obj_format(self, matrix):
         if self.render_type == renderer_type.RASTERIZE:
+            self.depth_buffer.write(self.depth_init_data.tobytes())
+
             all_tris = []
             s = True
             for matI in range(len(matrix)):
@@ -359,8 +520,8 @@ class Renderer3D:
                         continue
                     normal = self.normalT_camera_space((up0, up1, up2))
 
-                    if normal[2] >= 0:
-                        continue
+                    """if normal[2] >= 0:
+                        continue"""
                     if unprojected_normal[0] > 0:
                         col = (255, 0, 0)
                     elif unprojected_normal[0] < 0:
@@ -374,61 +535,38 @@ class Renderer3D:
                     elif unprojected_normal[2] < 0:
                         col = (55, 0, 55)
 
-                    """view_dir = (0, 0, 1)  # if camera faces +Z in camera space
-                    dot = normal[0]*view_dir[0] + normal[1]*view_dir[1] + normal[2]*view_dir[2]
-                    if dot >= 1:
-                        continue"""
-
-                    #col = self.triangle_base_color_1 if s else self.triangle_base_color_2
-                    #s = not s
                     all_tris.append((depths, (p0, p1, p2), col))
 
-            all_tris.sort(key=lambda t: t[0], reverse=True)
-            raster_w, raster_h = self.rasterization_size
-            z_buf = [math.inf for i in range(raster_w * raster_h)]
-            pixel_size_x = self.width / float(raster_w)
-            pixel_size_y = self.height / float(raster_h)
-            # integer pixel block to fill on the screen for each raster cell
-            block_w = max(1, int(math.ceil(pixel_size_x)))
-            block_h = max(1, int(math.ceil(pixel_size_y)))
-            framebuffer = np.zeros((self.height, self.width, 3), dtype=np.uint8)
-            for depths, tri, col in all_tris:
-                p0 = tri[0]
-                p1 = tri[1]
-                p2 = tri[2]
-                
-                p0r = (p0[0] / pixel_size_x, p0[1] / pixel_size_y)
-                p1r = (p1[0] / pixel_size_x, p1[1] / pixel_size_y)
-                p2r = (p2[0] / pixel_size_x, p2[1] / pixel_size_y)
-                
-                min_x = max(int(min(p0r[0], p1r[0], p2r[0])), 0)
-                max_x = min(int(max(p0r[0], p1r[0], p2r[0])) + 1, raster_w)
+            n = len(all_tris)
+            if n == 0:
+                return
 
-                min_y = max(int(min(p0r[1], p1r[1], p2r[1])), 0)
-                max_y = min(int(max(p0r[1], p1r[1], p2r[1])) + 1, raster_h)
-                for y in range(min_y, max_y):
-                    for x in range(min_x, max_x):
-                        buf_index = y * raster_w + x
+            data = np.zeros(n, dtype=tri_dtype)
+            for i, (depths, tri, color) in enumerate(all_tris):
+                p0, p1, p2 = tri
+                data[i]['pos'] = ((p0[0], p0[1]), (p1[0], p1[1]), (p2[0], p2[1]))
+                data[i]['depths'] = depths
+                data[i]['colors'] = (color[0] / 255.0, color[1] / 255.0, color[2] / 255.0)
 
-                        # convert triangle screen coords into raster grid coords
+            self.tri_buffer.write(data.tobytes())
+            self.tri_buffer.bind_to_storage_buffer(0, offset=0, size=data.nbytes)
 
-                        if self.is_point_inside_triangle(p0r, p1r, p2r, (x, y)):
-                            depth = self.depth_in_tri((p0r, p1r, p2r), (x, y), depths)
-                            if z_buf[buf_index] > depth:
-                                z_buf[buf_index] = depth
-                                # map raster cell (x,y) back to screen block and fill
-                                start_x = int(x * pixel_size_x)
-                                start_y = int(y * pixel_size_y)
-                                for i in range(block_w):
-                                    sx = start_x + i
-                                    if sx < 0 or sx >= self.width:
-                                        continue
-                                    for j in range(block_h):
-                                        sy = start_y + j
-                                        if sy < 0 or sy >= self.height:
-                                            continue
-                                        framebuffer[sx, sy] = col
-            pygame.surfarray.blit_array(self.screen, framebuffer)
+            self.depth_buffer.bind_to_storage_buffer(1)
+            self.output_tex.bind_to_image(0, read=False, write=True)
+
+            self.compute_shader['tri_count'].value = n
+
+            self.output_tex.write(self._output_clear_rgba.tobytes())
+            self.compute_shader.run((self.width + 15) // 16, (self.height + 15) // 16)
+            
+            raw_data = self.output_tex.read()
+            img_array = np.frombuffer(raw_data, dtype='f4').reshape((self.height, self.width, 4))
+            img_uint8 = (img_array * 255).astype('uint8')
+            
+            image_surface = pygame.image.frombuffer(img_uint8.tobytes(), (self.width, self.height), 'RGBA')
+            self.screen.blit(image_surface, (0, 0))
+
+
         elif self.render_type == renderer_type.POLYGON_FILL:
             all_tris = []
             s = True
