@@ -650,7 +650,8 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 
 ## License
 
-Free to use and modify.
+MIT
+
 
 
 
