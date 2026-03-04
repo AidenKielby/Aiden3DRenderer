@@ -14,7 +14,7 @@ A lightweight 3D wireframe renderer built with Pygame featuring custom projectio
 - **Custom Colors** - Ability to change colors on a per shape basis
 - **Simple Physics Engine** - easy to add physics to your render
 - **Obj Model Loading** - simple obj model loading
-- **Simple Rasterization** -- simple and slow rasterization for video_renderer and renderer
+- **Simple Rasterization** -- simple and slow rasterization for video_renderer, GPU optimized for renderer
 
 ## Gallery
 
@@ -651,6 +651,7 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 MIT
+
 
 
 
