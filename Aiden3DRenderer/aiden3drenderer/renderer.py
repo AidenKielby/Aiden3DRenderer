@@ -230,8 +230,11 @@ class Renderer3D:
             self._default_shapes_loaded = bool(self._default_shape_names)
 
         self.ctx = moderngl.create_context(standalone=True)
-        
-        self.compute_shader = self.ctx.compute_shader(compute_shader_for_rasterization)
+
+        if sys.platform != "darwin":
+            self.compute_shader = self.ctx.compute_shader(compute_shader_for_rasterization)
+        else:
+            self.compute_shader = None
         
         self.output_tex = self.ctx.texture((width, height), 4, dtype='f4')
 
@@ -947,3 +950,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
