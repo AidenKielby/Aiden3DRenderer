@@ -154,7 +154,7 @@ void main() {
                 if (d < best_depth) {
                     best_depth = d;
                     if (depthView){
-                        float c = pow(2, (-d * 0.5));
+                        float c = -pow(2, (-abs(d) * 0.75))+1;
                         best_color = vec3(c, c, c);
                     }
                     else{
