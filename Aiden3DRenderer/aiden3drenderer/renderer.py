@@ -63,6 +63,7 @@ layout(rgba32f, binding = 0) writeonly uniform image2D destTex;
 uniform uint tri_count;
 
 uniform bool depthView;
+uniform bool heatMap;
 
 shared Triangle local_tris[256];
 
@@ -157,6 +158,10 @@ void main() {
                         float c = -pow(2, (-abs(d) * 0.75))+1;
                         best_color = vec3(c, c, c);
                     }
+                    else if (heatMap){
+                        float t = clamp(d * 0.35, 0.0, 1.0);
+                        best_color = mix(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), t);
+                    }
                     else{
                         best_color = vec3(local_tris[j].r, local_tris[j].g, local_tris[j].b);
                     }
@@ -242,6 +247,7 @@ class Renderer3D:
         if sys.platform != "darwin":
             self.compute_shader = self.ctx.compute_shader(compute_shader_for_rasterization)
             self.compute_shader["depthView"].value = False
+            self.compute_shader["heatMap"].value = False
         else:
             self.compute_shader = None
         
@@ -257,6 +263,10 @@ class Renderer3D:
     def toggle_depth_view(self, b: bool):
         if sys.platform != "darwin":
             self.compute_shader["depthView"].value = b
+    
+    def toggle_heat_map(self, b: bool):
+        if sys.platform != "darwin":
+            self.compute_shader["heatMap"].value = b
 
     def set_render_type(self, type: renderer_type):
         self.render_type = type
