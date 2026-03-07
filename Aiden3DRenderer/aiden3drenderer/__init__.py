@@ -8,7 +8,7 @@ Example usage:
     renderer.run()
 """
 
-__version__ = "1.3.7"
+__version__ = "1.3.8"
 __author__ = "Aiden"
 
 from .renderer import Renderer3D, register_shape, renderer_type
@@ -27,3 +27,4 @@ __all__ = [
     "VideoRenderer3D",
     "VideoRendererObject",
 ]
+
