@@ -1,4 +1,9 @@
+
+<div align="center">
+
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/aiden3drenderer?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/aiden3drenderer)
+
+</div>
 
 # Aiden3DRenderer
 
@@ -654,6 +659,7 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 MIT
+
 
 
 
