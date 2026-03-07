@@ -1,10 +1,11 @@
 
 <div align="center">
-<h1>Aiden3DRenderer</h1>
+
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/aiden3drenderer?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/aiden3drenderer)
 
 </div>
 
+# Aiden3DRenderer
 A lightweight 3D wireframe renderer built with Pygame featuring custom projection, first-person camera controls, and 15+ procedural terrain generators.
 
 ## Features
@@ -657,6 +658,7 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 MIT
+
 
 
 
