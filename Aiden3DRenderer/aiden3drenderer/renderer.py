@@ -62,6 +62,8 @@ layout(std430, binding = 1) buffer DepthBuffer {
 layout(rgba32f, binding = 0) writeonly uniform image2D destTex;
 uniform uint tri_count;
 
+uniform bool depthView;
+
 shared Triangle local_tris[256];
 
 float dot(vec2 p1, vec2 p3, vec2 p2) {
@@ -151,7 +153,13 @@ void main() {
                 
                 if (d < best_depth) {
                     best_depth = d;
-                    best_color = vec3(local_tris[j].r, local_tris[j].g, local_tris[j].b);
+                    if (depthView){
+                        float c = pow(2, (-d * 0.5));
+                        best_color = vec3(c, c, c);
+                    }
+                    else{
+                        best_color = vec3(local_tris[j].r, local_tris[j].g, local_tris[j].b);
+                    }
                 }
             }
         }
@@ -230,11 +238,10 @@ class Renderer3D:
             self._default_shapes_loaded = bool(self._default_shape_names)
 
         self.ctx = moderngl.create_context(standalone=True)
+        
+        self.compute_shader = self.ctx.compute_shader(compute_shader_for_rasterization)
 
-        if sys.platform != "darwin":
-            self.compute_shader = self.ctx.compute_shader(compute_shader_for_rasterization)
-        else:
-            self.compute_shader = None
+        self.compute_shader["depthView"].value = False
         
         self.output_tex = self.ctx.texture((width, height), 4, dtype='f4')
 
@@ -244,6 +251,9 @@ class Renderer3D:
         self.depth_buffer = self.ctx.buffer(self.depth_init_data.tobytes())
         
         self.tri_buffer = self.ctx.buffer(reserve=tri_dtype.itemsize * 10000)
+
+    def toggle_depth_view(self, b: bool):
+        self.compute_shader["depthView"].value = b
 
     def set_render_type(self, type: renderer_type):
         self.render_type = type
@@ -621,8 +631,8 @@ class Renderer3D:
 
                     view_dir = (0, 0, 1)  # if camera faces +Z in camera space
                     dot = normal[0]*view_dir[0] + normal[1]*view_dir[1] + normal[2]*view_dir[2]
-                    if dot >= 0:
-                        continue
+                    """if dot >= 0:
+                        continue"""
 
                     #col = self.triangle_base_color_1 if s else self.triangle_base_color_2
                     s = not s
@@ -950,4 +960,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
