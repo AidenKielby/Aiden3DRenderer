@@ -1,7 +1,7 @@
 
 <div align="center">
 
-![Downloads](https://img.shields.io/pypi/dt/aiden3drenderer)
+[![Downloads](https://img.shields.io/pypi/dt/aiden3drenderer)]
 [![PyPI version](https://img.shields.io/pypi/v/aiden3drenderer?color=green)](https://pypi.org/project/aiden3drenderer/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/aiden3drenderer)](https://pypi.org/project/aiden3drenderer/)
 [![License: MIT](https://img.shields.io/pypi/l/aiden3drenderer)](https://github.com/AidenKielby/3D-mesh-Renderer/blob/main/LICENSE)
@@ -664,6 +664,7 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 MIT
+
 
 
 
