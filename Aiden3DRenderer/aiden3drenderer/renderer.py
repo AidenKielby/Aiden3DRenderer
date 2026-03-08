@@ -9,6 +9,7 @@ import importlib
 from enum import Enum
 import numpy as np
 import moderngl
+from PIL import Image
 
 from .camera import Camera
 
@@ -44,11 +45,11 @@ struct Triangle {
     float d2;     // 28 - 32 bytes (Depth for p2)
     float d3;     // 32 - 36 bytes (Depth for p3)
     
-    // We use three floats for RGB because a vec3 would force
-    // the GPU to skip 12 bytes of padding to find a 16-byte boundary.
-    float r;      // 36 - 40 bytes
-    float g;      // 40 - 44 bytes
-    float b;
+    float pad;   // 36 - 40 
+
+    vec2 uv1;    // 40 - 48
+    vec2 uv2;    // 48 - 56
+    vec2 uv3;    // 56 - 64
 };
 
 layout(std430, binding = 0) buffer triangle_data {
@@ -60,6 +61,8 @@ layout(std430, binding = 1) buffer DepthBuffer {
 };
 
 layout(rgba32f, binding = 0) writeonly uniform image2D destTex;
+
+uniform sampler2D inTex;
 uniform uint tri_count;
 
 uniform bool depthView;
@@ -163,7 +166,20 @@ void main() {
                         best_color = mix(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), t);
                     }
                     else{
-                        best_color = vec3(local_tris[j].r, local_tris[j].g, local_tris[j].b);
+                        vec3 ws = vec3(1.0/local_tris[j].d1, 1.0/local_tris[j].d2, 1.0/local_tris[j].d3);
+
+                        vec3 us = vec3(local_tris[j].uv1.x * ws.x, local_tris[j].uv2.x * ws.y, local_tris[j].uv3.x * ws.z);
+                        vec3 vs = vec3(local_tris[j].uv1.y * ws.x, local_tris[j].uv2.y * ws.y, local_tris[j].uv3.y * ws.z);
+
+                        float u_over_w = depth_in_tri(local_tris[j].pos1, local_tris[j].pos2, local_tris[j].pos3, p_center, us);
+                        float v_over_w = depth_in_tri(local_tris[j].pos1, local_tris[j].pos2, local_tris[j].pos3, p_center, vs);
+                        float one_over_w = depth_in_tri(local_tris[j].pos1, local_tris[j].pos2, local_tris[j].pos3, p_center, ws);
+
+                        vec2 uv = vec2(u_over_w / one_over_w, 1.0 - (v_over_w / one_over_w));
+                        vec4 color = texture(inTex, uv);
+                        barrier(); // do i need this here??
+
+                        best_color = vec3(color.x, color.y, color.z);
                     }
                 }
             }
@@ -188,7 +204,8 @@ void main() {
 tri_dtype = np.dtype([
     ('pos', 'f4', (3, 2)),    # 3 positions (x, y)
     ('depths', 'f4', 3),      # 3 depth values
-    ('colors', 'f4', 3),      # r, g, b
+    ('pad', 'f4', 1),
+    ('uv', 'f4', (3, 2)),     # 3 positions (u, v)
 ])
 
 class Renderer3D:
@@ -260,6 +277,8 @@ class Renderer3D:
         
         self.tri_buffer = self.ctx.buffer(reserve=tri_dtype.itemsize * 10000)
 
+        self.texture_path = None
+
     def toggle_depth_view(self, b: bool):
         if sys.platform != "darwin":
             self.compute_shader["depthView"].value = b
@@ -270,6 +289,18 @@ class Renderer3D:
 
     def set_render_type(self, type: renderer_type):
         self.render_type = type
+
+    def set_texture_for_raster(self, img_path):
+        self.texture_path = img_path
+        img = Image.open(self.texture_path).convert("RGBA")
+        img_data = np.array(img, dtype='u1')
+
+        texture = self.ctx.texture(img.size, 4, img_data.tobytes())
+        texture.use(location=0)  # bind to texture unit 0
+        texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
+        texture.repeat_x = False
+        texture.repeat_y = False
+        self.compute_shader["inTex"].value = 0 
 
     def normalize(self, v):
         length = math.sqrt(v[0]**2 + v[1]**2 + v[2]**2)
@@ -510,7 +541,7 @@ class Renderer3D:
                     0,
                 )
 
-    def render_shape_from_obj_format(self, matrix):
+    def render_shape_from_obj_format(self, matrix, texture_p):
         if self.render_type == renderer_type.RASTERIZE:
             self.depth_buffer.write(self.depth_init_data.tobytes())
 
@@ -520,15 +551,25 @@ class Renderer3D:
                 mat = matrix[matI]
                 if mat is None:
                     continue
-                vertices, faces = mat
-                unprojected_verticies, same_faces = self.vertices_faces_list[matI]
-                for face in faces:
+                vertices, faces, uv, uv_faces = mat
+                unprojected_verticies, same_faces, same_uv, same_uv_faces = self.vertices_faces_list[matI]
+                for faceI in range(len(faces)):
+                    face = faces[faceI]
                     p0 = vertices[face[0]]
                     p1 = vertices[face[1]]
                     p2 = vertices[face[2]]
 
                     if None in (p0, p1, p2):
                         continue
+                    
+                    uv_face = uv_faces[faceI]
+                    uv0 = uv[uv_face[0]]
+                    uv1 = uv[uv_face[1]]
+                    uv2 = uv[uv_face[2]]
+
+                    if None in (uv0, uv1, uv2):
+                        continue
+
                     near_plane = 0.01  # or something small
                     if max(p0[2], p1[2], p2[2]) <= near_plane:
                         continue
@@ -541,41 +582,23 @@ class Renderer3D:
                     up2 = unprojected_verticies[face[2]]
                     if None in (up0, up1, up2):
                         continue
-
-                    unprojected_normal = self.normalT_camera_space((up0, up1, up2))
                     # Only cull if normal clearly faces away — flip sign if needed
                     up0,up1,up2 = self.to_cam_space(up0), self.to_cam_space(up1), self.to_cam_space(up2)
                     if None in (up0, up1, up2):
                         continue
-                    normal = self.normalT_camera_space((up0, up1, up2))
 
-                    """if normal[2] >= 0:
-                        continue"""
-                    if unprojected_normal[0] > 0:
-                        col = (255, 0, 0)
-                    elif unprojected_normal[0] < 0:
-                        col = (55, 55, 0)
-                    elif unprojected_normal[1] > 0:
-                        col = (0, 255, 0)
-                    elif unprojected_normal[1] < 0:
-                        col = (0, 55, 55)
-                    elif unprojected_normal[2] > 0:
-                        col = (0, 0, 255)
-                    elif unprojected_normal[2] < 0:
-                        col = (55, 0, 55)
-
-                    all_tris.append((depths, (p0, p1, p2), col))
+                    all_tris.append((depths, (p0, p1, p2), uv0, uv1, uv2))
 
             n = len(all_tris)
             if n == 0:
                 return
 
             data = np.zeros(n, dtype=tri_dtype)
-            for i, (depths, tri, color) in enumerate(all_tris):
+            for i, (depths, tri, uv1, uv2, uv3) in enumerate(all_tris):
                 p0, p1, p2 = tri
                 data[i]['pos'] = ((p0[0], p0[1]), (p1[0], p1[1]), (p2[0], p2[1]))
                 data[i]['depths'] = depths
-                data[i]['colors'] = (color[0] / 255.0, color[1] / 255.0, color[2] / 255.0)
+                data[i]['uv'] = (uv1, uv2, uv3)
 
             self.tri_buffer.write(data.tobytes())
             self.tri_buffer.bind_to_storage_buffer(0, offset=0, size=data.nbytes)
@@ -603,7 +626,7 @@ class Renderer3D:
                 mat = matrix[matI]
                 if mat is None:
                     continue
-                vertices, faces = mat
+                vertices, faces, uv, uv_faces = mat
                 unprojected_verticies, same_faces = self.vertices_faces_list[matI]
                 for face in faces:
                     p0 = vertices[face[0]]
@@ -884,11 +907,11 @@ class Renderer3D:
                             self.vertices_faces_list[i][0],
                             fov_rad,
                             tuple(self.camera.position),
-                            tuple(self.camera.rotation)
+                            tuple(self.camera.rotation),
                         )
-                    self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1]])
+                    self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1], self.vertices_faces_list[i][2], self.vertices_faces_list[i][3]])
                 #if not self.is_mesh:
-                self.render_shape_from_obj_format(self.projected_vertices_faces_list)
+                self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
 
             self.grid_coords_list = []
             self.triangle_color_list_1 = []
@@ -950,11 +973,11 @@ class Renderer3D:
                         self.vertices_faces_list[i][0],
                         fov_rad,
                         tuple(self.camera.position),
-                        tuple(self.camera.rotation)
+                        tuple(self.camera.rotation),
                     )
-                self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1]])
+                self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1], self.vertices_faces_list[i][2], self.vertices_faces_list[i][3]])
             #if not self.is_mesh:
-            self.render_shape_from_obj_format(self.projected_vertices_faces_list)
+            self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
 
         self.grid_coords_list = []
         self.triangle_color_list_1 = []
