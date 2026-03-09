@@ -501,7 +501,7 @@ Notes & tips:
 - If you see seams or diagonal artifacts, those are rasterization/draw-order issues; sorting faces by depth or switching to OpenCV polygon fills can remove most artifacts.
 - The `VideoRenderer3D` API is experimental and may change; contributions and PRs are welcome.
 
-## VM Workaround For Mac
+## VM Workaround for macOS
 - [Install UTM](https://mac.getutm.app)
 - [Download Ubuntu ISO](https://ubuntu.com/download/desktop)
 - Open UTM
