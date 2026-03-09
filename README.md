@@ -28,6 +28,11 @@ A lightweight 3D wireframe renderer built with Pygame featuring custom projectio
 - **Simple Physics Engine** - easy to add physics to your render
 - **Obj Model Loading** - simple obj model loading
 - **Simple Rasterization** - simple and slow rasterization for video_renderer, GPU optimized for renderer
+- **3 Render Modes** - `MESH`, `POLYGON_FILL`, and GPU `RASTERIZE`
+- **Raster Debug Views** - depth view and heat map toggles for debugging depth/raster output
+- **Texture Mapping in Raster Mode** - apply image textures to triangles with UVs
+- **Runtime Shape Management** - toggle built-in shape set on/off at runtime
+- **OBJ Triangulation Support** - OBJ faces with more than 3 vertices are triangulated automatically
 - **⚠️DISCLAIMER⚠️** - GPU rasterization does not currently work on mac as mac does not support compute shaders (GL 4.3) :(
 
 ## Gallery
@@ -157,6 +162,47 @@ while True:
     # renderer.set_use_default_shapes(bool)
     # Above can be used to set the using of default shapes at runtime
     renderer.loopable_run()
+```
+
+### Renderer Modes & Raster Debug
+
+`Renderer3D` supports three render paths controlled by `renderer.render_type`:
+
+- `renderer_type.MESH` - wireframe mode
+- `renderer_type.POLYGON_FILL` - CPU triangle fill mode
+- `renderer_type.RASTERIZE` - GPU compute-shader rasterization mode (Windows/Linux with GL 4.3+)
+
+Example:
+
+```python
+from aiden3drenderer import Renderer3D, renderer_type
+
+renderer = Renderer3D()
+renderer.render_type = renderer_type.RASTERIZE
+
+# Optional: apply texture for UV-enabled faces
+renderer.set_texture_for_raster("./assets/alloy_forge_block.png")
+
+# Optional debug views (RASTERIZE mode)
+renderer.toggle_depth_view(True)
+# renderer.toggle_heat_map(True)
+
+renderer.run()
+```
+
+### Runtime Default Shape Toggle
+
+You can start without built-in terrains and/or toggle them while running:
+
+```python
+from aiden3drenderer import Renderer3D
+
+# Start with only your custom registered shapes
+renderer = Renderer3D(load_default_shapes=False)
+
+# Later at runtime, enable/disable built-in defaults
+renderer.set_use_default_shapes(True)
+# renderer.set_use_default_shapes(False)
 ```
 
 ### Looped Run Usage Example
@@ -397,6 +443,12 @@ if __name__ == "__main__":
 ### About:
 You can import 3D models from .obj files as shown above, however the rendering is very glitchy. I've tried fixing it for a very long time but am unable. Assistance/feedback is greatly apreciated.
 
+Additional OBJ loader features:
+
+- `obj_loader.get_obj(path, offset=(x, y, z))` supports world-space offsets during load.
+- Faces with more than 3 vertices are automatically triangulated.
+- UV coordinates (`vt`) are parsed when present and can be used by raster texture mode.
+
 ## Video Renderer
 
 A lightweight video renderer was added to convert OBJ models into video frames using the same projection pipeline as the main renderer. It supports per-object rotations and basic per-triangle rasterization.
@@ -429,10 +481,18 @@ o1.rotations_per_seccond = [0, 40, 0]
 
 o2 = VideoRendererObject("assets/model2.obj")
 o2.rotations_per_seccond = [10, 0, 5]
+o2.anchor_pos = [4, 0, 8]
 
 # when having multiple objects, for now the farther object must be put first th the list
 vr = VideoRenderer3D(width=1200, height=800, fps=24, shapes=[o2, o1])
 vr.render("multiples.avi", duration_s=10, verbose=True)
+```
+
+You can also add objects after creation:
+
+```python
+vr = VideoRenderer3D(width=800, height=600, fps=30, shapes=[])
+vr.add_shape("assets/model3.obj")
 ```
 
 Notes & tips:
@@ -583,11 +643,21 @@ from aiden3drenderer import Renderer3D
 
 renderer = Renderer3D(
     width=1200,      # Window width in pixels
-    height=800,      # Window height in pixels
-    fov=800          # Field of view (higher = less perspective)
+  height=800       # Window height in pixels
 )
 renderer.run()
 ```
+
+Useful `Renderer3D` methods and attributes:
+
+- `set_starting_shape(shape_name_or_none)` - choose first displayed shape (or `None`)
+- `set_use_default_shapes(bool)` - enable/disable built-in registered shapes
+- `set_render_type(renderer_type.*)` - switch render pipeline
+- `toggle_depth_view(bool)` - depth visualization in raster mode
+- `toggle_heat_map(bool)` - heat-map visualization in raster mode
+- `set_texture_for_raster(path)` - bind texture used in raster mode
+- `using_obj_filetype_format` - set `True` when rendering `vertices_faces_list` OBJ-format data
+- `vertices_faces_list` - append parsed OBJ data from `obj_loader.get_obj(...)`
 
 ### Camera
 
@@ -598,12 +668,13 @@ from aiden3drenderer import Camera
 
 # Access camera through renderer
 renderer = Renderer3D()
-camera = renderer.cam
+camera = renderer.camera
 
 # Camera attributes
-camera.pos          # [x, y, z] position
-camera.facing       # [yaw, pitch, roll] in radians
-camera.speed        # Movement speed (default: 0.5)
+camera.position     # [x, y, z] position
+camera.rotation     # [pitch, yaw, roll] in radians
+camera.speed        # Current movement speed
+camera.base_speed   # Base speed used before ctrl multiplier
 ```
 
 ### register_shape Decorator
@@ -611,13 +682,14 @@ camera.speed        # Movement speed (default: 0.5)
 Register custom shape generators that appear in the renderer.
 
 ```python
-@register_shape(name, key=None, is_animated=False)
+@register_shape(name, key=None, is_animated=False, color=None)
 def generate_function(grid_size=40, frame=0):
     """
     Args:
         name (str): Display name for the shape
         key (pygame.K_*): Keyboard key to trigger shape (optional)
         is_animated (bool): Whether shape changes over time
+        color (tuple[int, int, int] | None): Base color for polygon/raster modes
         
     Returns:
         list[list[float]]: grid_size x grid_size matrix of heights
@@ -665,4 +737,3 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 MIT
-
