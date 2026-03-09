@@ -357,34 +357,40 @@ class Renderer3D:
 
     def shape_to_verticies_faces(self, matrix):
         faces = []
-        uv = [(0,0),(0,1),(1,0),(1,1)]
+        uv = [(0, 0), (0, 1), (1, 0), (1, 1)]
         uv_faces = []
-        matrix_width = len(matrix)
-        for matI in range(len(matrix)):
-            mat = matrix[matI]
-            if mat is None:
-                continue
-            
-            for yIdx in range(len(mat)):
-                yList = mat[yIdx]
-                for xIdx in range(len(yList)):
-                    point = yList[xIdx]
-                    if point is not None:
 
-                        if xIdx < len(mat) - 1 and yIdx < len(yList) - 1:
-                            p1 = mat[yIdx][xIdx + 1]
-                            p2 = mat[yIdx + 1][xIdx]
-                            if p1 is not None and p2 is not None:
-                                faces.append((yIdx*matrix_width+xIdx, yIdx*matrix_width+xIdx+1, (yIdx+1)*matrix_width+xIdx))
-                                uv_faces.append((0, 1, 2))
+        if matrix is None or len(matrix) == 0 or len(matrix[0]) == 0:
+            return [[], faces, uv, uv_faces]
 
-                        if xIdx > 0 and xIdx > 0:
-                            p1 = mat[yIdx][xIdx - 1]
-                            p2 = mat[yIdx - 1][xIdx]
-                            if p1 is not None and p2 is not None:
-                                faces.append((yIdx*matrix_width+xIdx, yIdx*matrix_width+xIdx-1, (yIdx-1)*matrix_width+xIdx))
-                                uv_faces.append((3, 2, 1))
-        verts = [t for row in matrix[0] for t in row]
+        h = len(matrix)
+        w = len(matrix[0])
+
+        def idx(r, c):
+            return r * w + c
+
+        for r in range(h):
+            row = matrix[r]
+            for c in range(len(row)):
+                point = row[c]
+                if point is None:
+                    continue
+
+                if c < w - 1 and r < h - 1:
+                    p1 = matrix[r][c + 1]
+                    p2 = matrix[r + 1][c]
+                    if p1 is not None and p2 is not None:
+                        faces.append((idx(r, c), idx(r, c + 1), idx(r + 1, c)))
+                        uv_faces.append((0, 1, 2))
+
+                if c > 0 and r > 0:
+                    p1 = matrix[r][c - 1]
+                    p2 = matrix[r - 1][c]
+                    if p1 is not None and p2 is not None:
+                        faces.append((idx(r, c), idx(r, c - 1), idx(r - 1, c)))
+                        uv_faces.append((3, 2, 1))
+
+        verts = [p for row in matrix for p in row]
         return [verts, faces, uv, uv_faces]
 
 
@@ -952,8 +958,11 @@ class Renderer3D:
                     for proj in self.projections_list:
                         self.render_wireframe(proj)
                 elif self.render_type == renderer_type.RASTERIZE:
-                    self.projected_vertices_faces_list = self.shape_to_verticies_faces(self.projections_list)
-                    self.render_shape_from_obj_format([self.projected_vertices_faces_list], self.texture_path)
+                    self.projected_vertices_faces_list = [
+                        self.shape_to_verticies_faces(proj)
+                        for proj in self.projections_list
+                    ]
+                    self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
             else:
                 for i in range(len(self.vertices_faces_list)):
                     projected = self.project_3d_to_2d_flat(
@@ -1020,6 +1029,12 @@ class Renderer3D:
             elif self.render_type == renderer_type.MESH:
                 for proj in self.projections_list:
                     self.render_wireframe(proj)
+            elif self.render_type == renderer_type.RASTERIZE:
+                self.projected_vertices_faces_list = [
+                    self.shape_to_verticies_faces(proj)
+                    for proj in self.projections_list
+                ]
+                self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
         else:
             for i in range(len(self.vertices_faces_list)):
                 projected = self.project_3d_to_2d_flat(
