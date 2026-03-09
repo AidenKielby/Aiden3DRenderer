@@ -33,7 +33,7 @@ A lightweight 3D wireframe renderer built with Pygame featuring custom projectio
 - **Texture Mapping in Raster Mode** - apply image textures to triangles with UVs
 - **Runtime Shape Management** - toggle built-in shape set on/off at runtime
 - **OBJ Triangulation Support** - OBJ faces with more than 3 vertices are triangulated automatically
-- **⚠️DISCLAIMER⚠️** - GPU rasterization does not currently work on mac as mac does not support compute shaders (GL 4.3) :( [Click HERE to see how to make a VM](#vm-workaround-for-mac)
+- **⚠️DISCLAIMER⚠️** - GPU rasterization does not currently work on mac as mac does not support compute shaders (GL 4.3) :( [Click HERE to see how to make a VM](#vm-workaround-for-macos)
 
 ## Gallery
 
@@ -743,4 +743,5 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 MIT
+
 
