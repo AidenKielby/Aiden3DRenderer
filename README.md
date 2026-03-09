@@ -507,6 +507,20 @@ Notes & tips:
 - Open UTM
 - Select create new VM
 - Select Linux and follow the instructions
+- Once in the VM check for python
+  ```bash
+  sudo apt update
+  sudo apt install python3.11
+  ```
+- Check python version
+  ```bash
+  python3 --version
+  ```
+- Install pip
+  ```bash
+  sudo apt install python3-pip
+  ```
+- Install aiden3drenderer
 
 ## Controls
 
@@ -743,5 +757,6 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 MIT
+
 
 
