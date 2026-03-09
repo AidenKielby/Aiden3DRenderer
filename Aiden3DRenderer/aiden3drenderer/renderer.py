@@ -355,6 +355,39 @@ class Renderer3D:
             self._default_shape_names.clear()
             self._default_shapes_loaded = False
 
+    def shape_to_verticies_faces(self, matrix):
+        faces = []
+        uv = [(0,0),(0,1),(1,0),(1,1)]
+        uv_faces = []
+        matrix_width = len(matrix)
+        for matI in range(len(matrix)):
+            mat = matrix[matI]
+            if mat is None:
+                continue
+            
+            for yIdx in range(len(mat)):
+                yList = mat[yIdx]
+                for xIdx in range(len(yList)):
+                    point = yList[xIdx]
+                    if point is not None:
+
+                        if xIdx < len(mat) - 1 and yIdx < len(yList) - 1:
+                            p1 = mat[yIdx][xIdx + 1]
+                            p2 = mat[yIdx + 1][xIdx]
+                            if p1 is not None and p2 is not None:
+                                faces.append((yIdx*matrix_width+xIdx, yIdx*matrix_width+xIdx+1, (yIdx+1)*matrix_width+xIdx))
+                                uv_faces.append((0, 1, 2))
+
+                        if xIdx > 0 and xIdx > 0:
+                            p1 = mat[yIdx][xIdx - 1]
+                            p2 = mat[yIdx - 1][xIdx]
+                            if p1 is not None and p2 is not None:
+                                faces.append((yIdx*matrix_width+xIdx, yIdx*matrix_width+xIdx-1, (yIdx-1)*matrix_width+xIdx))
+                                uv_faces.append((3, 2, 1))
+        verts = [t for row in matrix[0] for t in row]
+        return [verts, faces, uv, uv_faces]
+
+
     def project_3d_to_2d(self, matrix, fov, camera_pos, camera_facing):
         projected = []
         #print(len(self.grid_coords_list))
@@ -416,6 +449,8 @@ class Renderer3D:
                 if self.render_type == renderer_type.MESH:
                     row.append((px, py))
                 elif self.render_type == renderer_type.POLYGON_FILL:
+                    row.append((px, py, z3))
+                elif self.render_type == renderer_type.RASTERIZE:
                     row.append((px, py, z3))
             projected.append(row)
 
@@ -553,6 +588,7 @@ class Renderer3D:
                 )
 
     def render_shape_from_obj_format(self, matrix, texture_p):
+        #print(matrix[0][0])
         if self.render_type == renderer_type.RASTERIZE:
             self.depth_buffer.write(self.depth_init_data.tobytes())
 
@@ -562,8 +598,10 @@ class Renderer3D:
                 mat = matrix[matI]
                 if mat is None:
                     continue
+                #print(mat)
                 vertices, faces, uv, uv_faces = mat
-                unprojected_verticies, same_faces, same_uv, same_uv_faces = self.vertices_faces_list[matI]
+                if self.using_obj_filetype_format:
+                    unprojected_verticies, same_faces, same_uv, same_uv_faces = self.vertices_faces_list[matI]
                 for faceI in range(len(faces)):
                     face = faces[faceI]
                     p0 = vertices[face[0]]
@@ -585,15 +623,16 @@ class Renderer3D:
                     # Consistent depth: average of projected Z
                     depths = (p0[2], p1[2], p2[2])
 
-                    up0 = unprojected_verticies[face[0]]
-                    up1 = unprojected_verticies[face[1]]
-                    up2 = unprojected_verticies[face[2]]
-                    if None in (up0, up1, up2):
-                        continue
-                    # Only cull if normal clearly faces away — flip sign if needed
-                    up0,up1,up2 = self.to_cam_space(up0), self.to_cam_space(up1), self.to_cam_space(up2)
-                    if None in (up0, up1, up2):
-                        continue
+                    if self.using_obj_filetype_format:
+                        up0 = unprojected_verticies[face[0]]
+                        up1 = unprojected_verticies[face[1]]
+                        up2 = unprojected_verticies[face[2]]
+                        if None in (up0, up1, up2):
+                            continue
+                        # Only cull if normal clearly faces away — flip sign if needed
+                        up0,up1,up2 = self.to_cam_space(up0), self.to_cam_space(up1), self.to_cam_space(up2)
+                        if None in (up0, up1, up2):
+                            continue
 
                     all_tris.append((depths, (p0, p1, p2), uv0, uv1, uv2))
 
@@ -912,6 +951,9 @@ class Renderer3D:
                 elif self.render_type == renderer_type.MESH:
                     for proj in self.projections_list:
                         self.render_wireframe(proj)
+                elif self.render_type == renderer_type.RASTERIZE:
+                    self.projected_vertices_faces_list = self.shape_to_verticies_faces(self.projections_list)
+                    self.render_shape_from_obj_format([self.projected_vertices_faces_list], self.texture_path)
             else:
                 for i in range(len(self.vertices_faces_list)):
                     projected = self.project_3d_to_2d_flat(
