@@ -104,11 +104,11 @@ A lightweight 3D wireframe renderer built with Pygame featuring custom projectio
     </tr>
     <tr>
       <td align="center">
-        <img src="media/MinecraftBoatFull.png" alt="Minecraft Boat Filled" width="400"/>
+        <img src="media/monkeyWithTexture.png" alt="Blender Monkey" width="400"/>
         <br/>
-        <b>Minecraft Boat Filled</b>
+        <b>Blender Monkey</b>
         <br/>
-        <i>OBJ file renderer showcase</i>
+        <i>Default Blender Monkey With A Creepy Texture</i>
       </td>
       <td align="center">
         <img src="media/MinecraftBoatWireframe.png" alt="Minecraft Boat Wireframe" width="400"/>
@@ -757,6 +757,3 @@ Created by Aiden. Most procedural generation functions created with AI assistanc
 ## License
 
 MIT
-
-
-
