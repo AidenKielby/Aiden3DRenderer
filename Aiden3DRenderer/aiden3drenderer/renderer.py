@@ -30,6 +30,7 @@ class renderer_type(Enum):
     RASTERIZE = "rasterize"
     POLYGON_FILL = "polygon_fill"
     MESH = "mesh"
+    RAYTRACE = "raytrace"
 
 compute_shader_for_rasterization = """
 #version 430
@@ -45,7 +46,7 @@ struct Triangle {
     float d2;     // 28 - 32 bytes (Depth for p2)
     float d3;     // 32 - 36 bytes (Depth for p3)
     
-    float pad;   // 36 - 40 
+    float light_mult;   // 36 - 40 
 
     vec2 uv1;    // 40 - 48
     vec2 uv2;    // 48 - 56
@@ -183,7 +184,7 @@ void main() {
                             vec2 uv = vec2(u_over_w / one_over_w, 1.0 - (v_over_w / one_over_w));
                             vec4 color = texture(inTex, uv);
 
-                            best_color = vec3(color.x, color.y, color.z);
+                            best_color = vec3(color.x * local_tris[j].light_mult, color.y * local_tris[j].light_mult, color.z * local_tris[j].light_mult);
                         }
                         
                     }
@@ -210,7 +211,7 @@ void main() {
 tri_dtype = np.dtype([
     ('pos', 'f4', (3, 2)),    # 3 positions (x, y)
     ('depths', 'f4', 3),      # 3 depth values
-    ('pad', 'f4', 1),
+    ('light_mult', 'f4', 1),
     ('uv', 'f4', (3, 2)),     # 3 positions (u, v)
 ])
 
@@ -616,6 +617,15 @@ class Renderer3D:
 
                     if None in (p0, p1, p2):
                         continue
+
+                    up0 = unprojected_verticies[face[0]]
+                    up1 = unprojected_verticies[face[1]]
+                    up2 = unprojected_verticies[face[2]]
+                    unprojected_normal = self.normalT_camera_space((up0, up1, up2))
+
+                    light_dir = np.array([0, 1, 0])
+
+                    light_m = max(0.25, np.dot(light_dir, np.array(unprojected_normal)))
                     
                     uv_face = uv_faces[faceI]
                     uv0 = uv[uv_face[0]]
@@ -640,21 +650,24 @@ class Renderer3D:
                         if None in (up0, up1, up2):
                             continue
 
-                    all_tris.append((depths, (p0, p1, p2), uv0, uv1, uv2))
+                    all_tris.append((depths, (p0, p1, p2), uv0, uv1, uv2, light_m))
 
             n = len(all_tris)
             if n == 0:
                 return
 
             data = np.zeros(n, dtype=tri_dtype)
-            for i, (depths, tri, uv1, uv2, uv3) in enumerate(all_tris):
+            for i, (depths, tri, uv1, uv2, uv3, light_m) in enumerate(all_tris):
                 p0, p1, p2 = tri
                 data[i]['pos'] = ((p0[0], p0[1]), (p1[0], p1[1]), (p2[0], p2[1]))
                 data[i]['depths'] = depths
                 if None in (uv1, uv2, uv3) or self.texture == None:
                     data[i]['uv'] = ((-1.0, -1.0), (-1.0, -1.0), (-1.0, -1.0))
+                    data[i]['light_mult'] = 1
                 else:
                     data[i]['uv'] = (uv1, uv2, uv3)
+                    data[i]['light_mult'] = light_m
+                
 
             self.tri_buffer.write(data.tobytes())
             self.tri_buffer.bind_to_storage_buffer(0, offset=0, size=data.nbytes)
@@ -781,6 +794,149 @@ class Renderer3D:
                     pygame.draw.line(self.screen, (0, 0, 0), p0, p1, 2)
                     pygame.draw.line(self.screen, (0, 0, 0), p1, p2, 2)
                     pygame.draw.line(self.screen, (0, 0, 0), p2, p0, 2)
+    
+    def does_ray_intersect(self, ray_origin, step_size, direction, triangle):
+        v0 = triangle[0]
+        v1 = triangle[1]
+        v2 = triangle[2]
+
+        e1 = np.array(v1) - np.array(v0)
+        e2 = np.array(v2) - np.array(v0)
+
+        h = np.array(self.cross(direction, e2.tolist()))
+        det = np.dot(h, e1)
+
+        if det < 0.1 and det > -0.1:
+            return (False, None)
+        
+        t = np.array(ray_origin) - np.array(v0)
+        u = (np.dot(t,h)) / det
+
+        if u < 0 or u > 1:
+            return (False, None)
+        
+        q = np.cross(t,e1)
+        v = (np.dot(np.array(direction), q ) / det)
+
+        if v < 0 or u + v > 1:
+            return (False, None)
+        
+        t = (np.dot(e2, q)) / det
+
+        if t > step_size:
+            return (True, t)
+        
+    def shade(self, hit_point, closest_tri, texture_path):
+        ws = np.array([
+            1.0 / closest_tri['d1'],
+            1.0 / closest_tri['d2'],
+            1.0 / closest_tri['d3']
+        ])
+
+        us = np.array([
+            closest_tri['uv1'][0] * ws[0],
+            closest_tri['uv2'][0] * ws[1],
+            closest_tri['uv3'][0] * ws[2]
+        ])
+        vs = np.array([
+            closest_tri['uv1'][1] * ws[0],
+            closest_tri['uv2'][1] * ws[1],
+            closest_tri['uv3'][1] * ws[2]
+        ])
+
+        u_over_w   = self.depth_in_tri(closest_tri['pos1'], closest_tri['pos2'], closest_tri['pos3'], hit_point, us)
+        v_over_w   = self.depth_in_tri(closest_tri['pos1'], closest_tri['pos2'], closest_tri['pos3'], hit_point, vs)
+        one_over_w = self.depth_in_tri(closest_tri['pos1'], closest_tri['pos2'], closest_tri['pos3'], hit_point, ws)
+
+        uv = np.array([u_over_w / one_over_w, 1.0 - (v_over_w / one_over_w)])
+        
+        tex = Image.open(texture_path).convert("RGBA")
+
+        color = self.sample_texture(tex, uv)
+        return (color[0], color[1], color[2])
+    
+    def sample_texture(self, img, uv):  
+        w, h = img.size
+        x = int(uv[0] * w) % w
+        y = int(uv[1] * h) % h
+        r, g, b = img.getpixel((x, y))[:3]
+        return np.array([r/255, g/255, b/255])
+
+    def cast_ray(self, ray_origin, direction, triangles, texture_path):
+        closest_t = float('inf')
+        closest_triangle = None
+
+        for triangle in triangles:
+            hit, t = self.does_ray_intersect(ray_origin, 0.001, direction, triangle)
+            if hit and t < closest_t:
+                closest_t = t
+                closest_triangle = triangle
+
+        if closest_triangle:
+            hit_point = ray_origin + closest_t * direction
+            return self.shade(hit_point, closest_triangle, texture_path)
+        else:
+            return (10, 10, 150)
+
+    def raytrace(self, matrix, texture_path):
+        all_tris = []
+        s = True
+        for matI in range(len(matrix)):
+            mat = matrix[matI]
+            if mat is None:
+                continue
+            #print(mat)
+            vertices, faces, uv, uv_faces = mat
+            for faceI in range(len(faces)):
+                face = faces[faceI]
+                p0 = vertices[face[0]]
+                p1 = vertices[face[1]]
+                p2 = vertices[face[2]]
+
+                if None in (p0, p1, p2):
+                    continue
+
+                near_plane = 0.01  # or something small
+                if max(p0[2], p1[2], p2[2]) <= near_plane:
+                    continue
+
+                all_tris.append((p0, p1, p2))
+        aspect = self.width / self.height
+        fov = math.radians(100)
+        fov_scale = math.tan(math.radians(fov / 2))
+
+        yaw   = self.camera.rotation[1]
+        pitch = self.camera.rotation[0]
+
+        forward = self.normalize(np.array([
+            math.cos(pitch) * math.sin(yaw),
+        -math.sin(pitch),
+            math.cos(pitch) * math.cos(yaw)
+        ]))
+        right = self.normalize(np.cross(forward, np.array([0, 1, 0])))
+        up    = np.cross(right, forward)
+        
+        cols = []
+
+        for yI in range(self.height):
+            c = []
+            for xI in range(self.width):
+                px = (2.0 * (xI + 0.5) / self.width  - 1.0) * fov_scale * aspect
+                py = (1.0 - 2.0 * (yI + 0.5) / self.height) * fov_scale
+                ray_origin = self.camera.position
+                ray_dir = self.normalize(forward + right * px + up * py)
+
+                col = self.cast_ray(ray_origin, ray_dir, all_tris, texture_path)
+                c.append(col)
+            cols.append(c)
+
+        surface_array = np.transpose(cols, (1, 0, 2))  # pygame wants (width, height, 3)
+        pygame.surfarray.blit_array(self.screen, surface_array)
+        pygame.display.flip()
+
+
+    def normalize(self, v):
+        return v / np.linalg.norm(v)
 
     def depth_in_tri(self, tri, point, depths):
         t_p0 = tri[0]
@@ -964,16 +1120,19 @@ class Renderer3D:
                     ]
                     self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
             else:
-                for i in range(len(self.vertices_faces_list)):
-                    projected = self.project_3d_to_2d_flat(
-                            self.vertices_faces_list[i][0],
-                            fov_rad,
-                            tuple(self.camera.position),
-                            tuple(self.camera.rotation),
-                        )
-                    self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1], self.vertices_faces_list[i][2], self.vertices_faces_list[i][3]])
-                #if not self.is_mesh:
-                self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
+                if self.render_type == renderer_type.RASTERIZE:
+                    for i in range(len(self.vertices_faces_list)):
+                        projected = self.project_3d_to_2d_flat(
+                                self.vertices_faces_list[i][0],
+                                fov_rad,
+                                tuple(self.camera.position),
+                                tuple(self.camera.rotation),
+                            )
+                        self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1], self.vertices_faces_list[i][2], self.vertices_faces_list[i][3]])
+                    #if not self.is_mesh:
+                    self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
+                elif self.render_type == renderer_type.RAYTRACE:
+                    self.raytrace(self.vertices_faces_list, self.texture_path)
 
             self.grid_coords_list = []
             self.triangle_color_list_1 = []
