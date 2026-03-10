@@ -1,3 +1,5 @@
+# NOT UP TO DATE WITH AIDEN3DRENDERER PACKAGE
+
 import pygame
 from pygame import QUIT
 import sys
@@ -520,4 +522,5 @@ while True:
     render(screen, m)
 
     pygame.display.update()
+
     clock.tick(60)
