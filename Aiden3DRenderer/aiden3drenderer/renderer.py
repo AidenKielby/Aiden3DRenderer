@@ -310,7 +310,7 @@ class Renderer3D:
 
             self.texture = self.ctx.texture(img.size, 4, img_data.tobytes())
             self.texture.use(location=0)  # bind to texture unit 0
-            self.texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
+            self.texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
             self.texture.repeat_x = False
             self.texture.repeat_y = False
             self.compute_shader["inTex"].value = 0 
@@ -638,14 +638,14 @@ class Renderer3D:
 
                     light_dir = np.array([0, 1, 0])
 
-                    light_m = self.smax_exp(self.lighting_strictness, np.dot(light_dir, np.array(unprojected_normal)), 1)
+                    light_m = max(self.lighting_strictness, np.dot(light_dir, np.array(unprojected_normal)))
                     
                     uv_face = uv_faces[faceI]
                     uv0 = uv[uv_face[0]]
                     uv1 = uv[uv_face[1]]
                     uv2 = uv[uv_face[2]]
 
-                    near_plane = 0.01  # or something small
+                    near_plane = -2  # or something small
                     if max(p0[2], p1[2], p2[2]) <= near_plane:
                         continue
 
