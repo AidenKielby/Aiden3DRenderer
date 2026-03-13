@@ -50,6 +50,11 @@ struct Triangle {
     vec2 uv1;    // 40 - 48
     vec2 uv2;    // 48 - 56
     vec2 uv3;    // 56 - 64
+
+    float is_skybox;   // 64 - 68
+    float pad; // 68 - 72
+    float pad1; // 72 - 76
+    float pad2; // 76 - 80
 };
 
 layout(std430, binding = 0) buffer triangle_data {
@@ -63,6 +68,7 @@ layout(std430, binding = 1) buffer DepthBuffer {
 layout(rgba32f, binding = 0) writeonly uniform image2D destTex;
 
 uniform sampler2D inTex;
+uniform sampler2D skyTex;
 uniform uint tri_count;
 
 uniform bool depthView;
@@ -181,7 +187,15 @@ void main() {
                             float one_over_w = depth_in_tri(local_tris[j].pos1, local_tris[j].pos2, local_tris[j].pos3, p_center, ws);
 
                             vec2 uv = vec2(u_over_w / one_over_w, 1.0 - (v_over_w / one_over_w));
-                            vec4 color = texture(inTex, uv);
+
+                            vec4 color = vec4(1.0);
+
+                            if (local_tris[j].is_skybox == 1){
+                                color = texture(skyTex, uv);
+                            }
+                            else{
+                                color = texture(inTex, uv);
+                            }
 
                             best_color = vec3(color.x * local_tris[j].light_mult, color.y * local_tris[j].light_mult, color.z * local_tris[j].light_mult);
                         }
@@ -212,6 +226,10 @@ tri_dtype = np.dtype([
     ('depths', 'f4', 3),      # 3 depth values
     ('light_mult', 'f4', 1),
     ('uv', 'f4', (3, 2)),     # 3 positions (u, v)
+    ('is_skybox', 'f4', 1),
+    ('pad', 'f4', 1),
+    ('pad1', 'f4', 1),
+    ('pad2', 'f4', 1),
 ])
 
 class Renderer3D:
@@ -286,8 +304,10 @@ class Renderer3D:
         self.tri_buffer = self.ctx.buffer(reserve=tri_dtype.itemsize * 10000)
 
         self.texture_path = None
+        self.skybox_texture_path = None
 
         self.texture = None
+        self.skybox_texture = None
 
     def toggle_depth_view(self, b: bool):
         if sys.platform != "darwin":
@@ -314,6 +334,53 @@ class Renderer3D:
             self.texture.repeat_x = False
             self.texture.repeat_y = False
             self.compute_shader["inTex"].value = 0 
+
+    def generate_cubemap_skybox(self, radius: int, texture_path, left_uvs, right_uvs, top_uvs, bottom_uvs, forward_uvs, backward_uvs):
+        #uv inputs go like: op left uv, top right uv, bottom left uv, bottom right uv
+        if sys.platform != "darwin":
+            verts = np.array([(-1,-1,-1), (1,-1,-1), (-1,1,-1), (-1,-1,1), (1,1,-1), (-1,1,1), (1,-1,1), (1,1,1)])
+            verts = verts * radius
+            faces = [(0,3,2), (2,5,3), (1,4,6), (6,4,7), (0,1,2), (2,1,4), (3,5,6), (6,5,7), (0,6,1), (0,3,6), (2,4,5), (5,4,7)]
+
+            uvs = [
+                # left (0-3)
+                left_uvs[1], left_uvs[3], left_uvs[0], left_uvs[2],
+                # right (4-7)
+                right_uvs[0], right_uvs[1], right_uvs[2], right_uvs[3],
+                # backward (8-11)
+                backward_uvs[0], backward_uvs[1], backward_uvs[2], backward_uvs[3],
+                # forward (12-15)
+                forward_uvs[0], forward_uvs[1], forward_uvs[2], forward_uvs[3],
+                # bottom (16-19)
+                bottom_uvs[0], bottom_uvs[1], bottom_uvs[2], bottom_uvs[3],
+                # top (20-23)
+                top_uvs[0], top_uvs[1], top_uvs[2], top_uvs[3],
+            ]
+
+            uv_faces = [
+                (0, 2, 1), (1, 3, 2),    # left
+                (4, 6, 5), (5, 6, 7),    # right
+                (9, 8, 11), (11, 8, 10), # backward
+                (12, 14, 13), (13, 14, 15), # forward
+                (16, 18, 17), (16, 19, 18), # bottom
+                (22, 23, 20), (20, 23, 21), # top
+            ]
+
+            if self.skybox_texture is not None:
+                self.skybox_texture.release()
+            self.skybox_texture_path = texture_path
+            img = Image.open(self.skybox_texture_path).convert("RGBA")
+            img_data = np.array(img, dtype='u1')
+
+            self.skybox_texture = self.ctx.texture(img.size, 4, img_data.tobytes())
+            self.skybox_texture.use(location=1)  # bind to texture unit 0
+            self.skybox_texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
+            self.skybox_texture.repeat_x = False
+            self.skybox_texture.repeat_y = False
+            self.compute_shader["skyTex"].value = 1 
+
+            self.vertices_faces_list.append([verts.tolist(),faces,uvs,uv_faces, True])
+        
 
     def normalize(self, v):
         length = math.sqrt(v[0]**2 + v[1]**2 + v[2]**2)
@@ -439,7 +506,7 @@ class Renderer3D:
                 y3 = x2 * sin_z + y2 * cos_z
                 z3 = z2
 
-                if z3 <= 0.1:
+                if z3 <= -1:
                     row.append(None)
                     continue
 
@@ -449,10 +516,10 @@ class Renderer3D:
                 px = dd_x * self.half_w + self.half_w
                 py = dd_y * self.half_h + self.half_h
 
-                margin = 1000
+                """margin = 5000
                 if px < -margin or px > self.width + margin or py < -margin or py > self.height + margin:
                     row.append(None)
-                    continue
+                    continue"""
                 
                 if self.render_type == renderer_type.MESH:
                     row.append((px, py))
@@ -464,7 +531,7 @@ class Renderer3D:
 
         return projected
     
-    def project_3d_to_2d_flat(self, inList, fov, camera_pos, camera_facing):
+    def project_3d_to_2d_flat(self, inList, fov, camera_pos, camera_facing, is_skybox):
         projected = []
         #print(len(self.grid_coords_list))
         if inList is None:
@@ -488,9 +555,10 @@ class Renderer3D:
             y = point[1]
             z = point[2]
 
-            x -= camera_pos[0]
-            y -= camera_pos[1]
-            z -= camera_pos[2]
+            if not is_skybox:
+                x -= camera_pos[0]
+                y -= camera_pos[1]
+                z -= camera_pos[2]
 
             x1 = x * cos_y + z * sin_y
             y1 = y
@@ -514,10 +582,10 @@ class Renderer3D:
             px = dd_x * self.half_w + self.half_w
             py = dd_y * self.half_h + self.half_h
 
-            margin = 1000
+            """margin = 1000
             if px < -margin or px > self.width + margin or py < -margin or py > self.height + margin:
                 projected.append(None)
-                continue
+                continue"""
             
             if self.render_type == renderer_type.MESH:
                 projected.append((px, py))
@@ -602,9 +670,73 @@ class Renderer3D:
     def smax_exp(self, a, b, k):
         return np.log(np.exp(k * a) + np.exp(k * b)) / k
 
-    # Helper function
     def mix(self, a, b, t):
         return a * (1.0 - t) + b * t
+    
+    def interp_vert(self, v0, v1, t):
+        return (
+            v0[0] + t * (v1[0] - v0[0]),
+            v0[1] + t * (v1[1] - v0[1]),
+            v0[2] + t * (v1[2] - v0[2]),
+        )
+    def interp_uv(self, uv0, uv1, t):
+        return (
+            uv0[0] + t * (uv1[0] - uv0[0]),
+            uv0[1] + t * (uv1[1] - uv0[1]),
+        )
+    def t_near(self, v_in, v_out, near):
+        denom = v_out[2] - v_in[2]
+        if abs(denom) < 1e-10:
+            return 0.0
+        return (near - v_in[2]) / denom
+    
+    def clip_triangle_near(self, verts_3d, uvs, near=0.1):
+
+        inside  = [(v, uv) for v, uv in zip(verts_3d, uvs) if v[2] >= near]
+        outside = [(v, uv) for v, uv in zip(verts_3d, uvs) if v[2] <  near]
+
+        if len(inside) == 3:
+            return [(verts_3d, uvs)]
+
+        if len(inside) == 0:
+            return []
+
+        if len(inside) == 1:
+            v0, uv0 = inside[0]
+            v1, uv1 = outside[0]
+            v2, uv2 = outside[1]
+            t1 = self.t_near(v0, v1, near)
+            t2 = self.t_near(v0, v2, near)
+            p1 = self.interp_vert(v0, v1, t1);  puv1 = self.interp_uv(uv0, uv1, t1)
+            p2 = self.interp_vert(v0, v2, t2);  puv2 = self.interp_uv(uv0, uv2, t2)
+            return [([v0, p1, p2], [uv0, puv1, puv2])]
+
+        if len(inside) == 2:
+            v0, uv0 = inside[0]
+            v1, uv1 = inside[1]
+            v2, uv2 = outside[0]
+            t1 = self.t_near(v0, v2, near)
+            t2 = self.t_near(v1, v2, near)
+            p1 = self.interp_vert(v0, v2, t1);  puv1 = self.interp_uv(uv0, uv2, t1)
+            p2 = self.interp_vert(v1, v2, t2);  puv2 = self.interp_uv(uv1, uv2, t2)
+            tri1 = ([v0, v1, p1], [uv0, uv1, puv1])
+            tri2 = ([v1, p2, p1], [uv1, puv2, puv1])
+            return [tri1, tri2]
+
+        return []
+    
+    def cam(self, pt, is_skybox):
+        if not is_skybox:
+            x, y, z = pt[0]-self.camera.position[0], pt[1]-self.camera.position[1], pt[2]-self.camera.position[2]
+        else:
+            x, y, z = pt[0], pt[1], pt[2]
+        cy, sy = math.cos(self.camera.rotation[1]), math.sin(self.camera.rotation[1])
+        cx, sx = math.cos(self.camera.rotation[0]), math.sin(self.camera.rotation[0])
+        cz, sz = math.cos(self.camera.rotation[2]), math.sin(self.camera.rotation[2])
+        x1 = x*cy + z*sy;  z1 = -x*sy + z*cy
+        x2 = x1;           y2 = y*cx - z1*sx;  z2 = y*sx + z1*cx
+        x3 = x2*cz - y2*sz; y3 = x2*sz + y2*cz
+        return (x3, y3, z2)
 
     def render_shape_from_obj_format(self, matrix, texture_p):
         #print(matrix[0][0])
@@ -612,74 +744,81 @@ class Renderer3D:
             self.depth_buffer.write(self.depth_init_data.tobytes())
 
             all_tris = []
-            s = True
+            fov_rad = math.radians(self.camera.fov)
+
             for matI in range(len(matrix)):
                 mat = matrix[matI]
                 if mat is None:
                     continue
-                #print(mat)
-                vertices, faces, uv, uv_faces = mat
-                
-                if self.using_obj_filetype_format:
-                    unprojected_verticies, same_faces, same_uv, same_uv_faces = self.vertices_faces_list[matI]
+
+                vertices, faces, uv, uv_faces, is_skybox = mat
+                unprojected_verticies, same_faces, same_uv, same_uv_faces, is_skybox1 = self.vertices_faces_list[matI]
+
                 for faceI in range(len(faces)):
                     face = faces[faceI]
-                    p0 = vertices[face[0]]
-                    p1 = vertices[face[1]]
-                    p2 = vertices[face[2]]
-
-                    if None in (p0, p1, p2):
-                        continue
 
                     up0 = unprojected_verticies[face[0]]
                     up1 = unprojected_verticies[face[1]]
                     up2 = unprojected_verticies[face[2]]
-                    unprojected_normal = self.normalT_camera_space((up0, up1, up2))
+                    if None in (up0, up1, up2):
+                        continue
 
-                    light_dir = np.array([0, 1, 0])
-
-                    light_m = max(self.lighting_strictness, np.dot(light_dir, np.array(unprojected_normal)))
-                    
                     uv_face = uv_faces[faceI]
                     uv0 = uv[uv_face[0]]
                     uv1 = uv[uv_face[1]]
                     uv2 = uv[uv_face[2]]
 
-                    near_plane = -2  # or something small
-                    if max(p0[2], p1[2], p2[2]) <= near_plane:
-                        continue
+                    unprojected_normal = self.normalT_camera_space((up0, up1, up2))
+                    light_dir = np.array([0, 1, 0])
+                    light_m = max(self.lighting_strictness, np.dot(light_dir, np.array(unprojected_normal)))
 
-                    # Consistent depth: average of projected Z
-                    depths = (p0[2], p1[2], p2[2])
+                    cam0, cam1, cam2 = self.cam(up0, is_skybox), self.cam(up1, is_skybox), self.cam(up2, is_skybox)
 
-                    if self.using_obj_filetype_format:
-                        up0 = unprojected_verticies[face[0]]
-                        up1 = unprojected_verticies[face[1]]
-                        up2 = unprojected_verticies[face[2]]
-                        if None in (up0, up1, up2):
-                            continue
-                        # Only cull if normal clearly faces away — flip sign if needed
-                        up0,up1,up2 = self.to_cam_space(up0), self.to_cam_space(up1), self.to_cam_space(up2)
-                        if None in (up0, up1, up2):
-                            continue
+                    clipped = self.clip_triangle_near([cam0, cam1, cam2], [uv0, uv1, uv2], near=0.1)
 
-                    all_tris.append((depths, (p0, p1, p2), uv0, uv1, uv2, light_m))
+                    for clipped_verts, clipped_uvs in clipped:
+                        def proj(v):
+                            f = 1.0 / math.tan(fov_rad / 2)
+                            return (
+                                (v[0] * f / -v[2]) * self.half_w + self.half_w,
+                                (v[1] * f / -v[2]) * self.half_h + self.half_h,
+                                v[2]
+                            )
+                        pp0, pp1, pp2 = proj(clipped_verts[0]), proj(clipped_verts[1]), proj(clipped_verts[2])
+                        all_tris.append((
+                            (pp0[2], pp1[2], pp2[2]),
+                            (pp0, pp1, pp2),
+                            clipped_uvs[0], clipped_uvs[1], clipped_uvs[2],
+                            light_m, is_skybox
+                        ))
 
             n = len(all_tris)
             if n == 0:
                 return
 
             data = np.zeros(n, dtype=tri_dtype)
-            for i, (depths, tri, uv1, uv2, uv3, light_m) in enumerate(all_tris):
+            for i, (depths, tri, uv1, uv2, uv3, light_m, is_skybox) in enumerate(all_tris):
                 p0, p1, p2 = tri
                 data[i]['pos'] = ((p0[0], p0[1]), (p1[0], p1[1]), (p2[0], p2[1]))
                 data[i]['depths'] = depths
-                if None in (uv1, uv2, uv3) or self.texture == None:
-                    data[i]['uv'] = ((-1.0, -1.0), (-1.0, -1.0), (-1.0, -1.0))
-                    data[i]['light_mult'] = 1
+                if not is_skybox:
+                    if None in (uv1, uv2, uv3) or self.texture == None:
+                        data[i]['uv'] = ((-1.0, -1.0), (-1.0, -1.0), (-1.0, -1.0))
+                        data[i]['light_mult'] = 1
+                        data[i]["is_skybox"] = 0
+                    else:
+                        data[i]['uv'] = (uv1, uv2, uv3)
+                        data[i]['light_mult'] = light_m
+                        data[i]["is_skybox"] = 0
                 else:
-                    data[i]['uv'] = (uv1, uv2, uv3)
-                    data[i]['light_mult'] = light_m
+                    if None in (uv1, uv2, uv3) or self.skybox_texture == None:
+                        data[i]['uv'] = ((-1.0, -1.0), (-1.0, -1.0), (-1.0, -1.0))
+                        data[i]['light_mult'] = 1
+                        data[i]["is_skybox"] = 0
+                    else:
+                        data[i]['uv'] = (uv1, uv2, uv3)
+                        data[i]['light_mult'] = 1
+                        data[i]["is_skybox"] = 1
                 
 
             self.tri_buffer.write(data.tobytes())
@@ -950,7 +1089,7 @@ class Renderer3D:
             self.clock.tick(60)
             self.animation_time += 0.01
             # Precompute FOV radians once per frame
-            fov_rad = math.radians(100)
+            fov_rad = math.radians(self.camera.fov)
             
             # Handle events
             for event in pygame.event.get():
@@ -1002,8 +1141,9 @@ class Renderer3D:
                                 fov_rad,
                                 tuple(self.camera.position),
                                 tuple(self.camera.rotation),
+                                self.vertices_faces_list[i][4]
                             )
-                        self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1], self.vertices_faces_list[i][2], self.vertices_faces_list[i][3]])
+                        self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1], self.vertices_faces_list[i][2], self.vertices_faces_list[i][3], self.vertices_faces_list[i][4]])
                     #if not self.is_mesh:
                     self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
 
@@ -1069,13 +1209,15 @@ class Renderer3D:
                 self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
         else:
             for i in range(len(self.vertices_faces_list)):
-                projected = self.project_3d_to_2d_flat(
-                        self.vertices_faces_list[i][0],
-                        fov_rad,
-                        tuple(self.camera.position),
-                        tuple(self.camera.rotation),
-                    )
-                self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1], self.vertices_faces_list[i][2], self.vertices_faces_list[i][3]])
+                for i in range(len(self.vertices_faces_list)):
+                    projected = self.project_3d_to_2d_flat(
+                            self.vertices_faces_list[i][0],
+                            fov_rad,
+                            tuple(self.camera.position),
+                            tuple(self.camera.rotation),
+                            self.vertices_faces_list[i][4]
+                        )
+                    self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1], self.vertices_faces_list[i][2], self.vertices_faces_list[i][3], self.vertices_faces_list[i][4]])
             #if not self.is_mesh:
             self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
 
