@@ -460,7 +460,7 @@ class Renderer3D:
                         uv_faces.append((3, 2, 1))
 
         verts = [p for row in matrix for p in row]
-        return [verts, faces, uv, uv_faces]
+        return [verts, faces, uv, uv_faces, False]
 
 
     def project_3d_to_2d(self, matrix, fov, camera_pos, camera_facing):
@@ -506,7 +506,7 @@ class Renderer3D:
                 y3 = x2 * sin_z + y2 * cos_z
                 z3 = z2
 
-                if z3 <= -1:
+                if z3 <= -1 or abs(z3) < 1e-6:
                     row.append(None)
                     continue
 
@@ -752,45 +752,59 @@ class Renderer3D:
                     continue
 
                 vertices, faces, uv, uv_faces, is_skybox = mat
-                unprojected_verticies, same_faces, same_uv, same_uv_faces, is_skybox1 = self.vertices_faces_list[matI]
+                if self.using_obj_filetype_format:
+                    unprojected_verticies, same_faces, same_uv, same_uv_faces, is_skybox1 = self.vertices_faces_list[matI]
 
                 for faceI in range(len(faces)):
                     face = faces[faceI]
 
-                    up0 = unprojected_verticies[face[0]]
-                    up1 = unprojected_verticies[face[1]]
-                    up2 = unprojected_verticies[face[2]]
-                    if None in (up0, up1, up2):
-                        continue
+                    if self.using_obj_filetype_format:
+                        up0 = unprojected_verticies[face[0]]
+                        up1 = unprojected_verticies[face[1]]
+                        up2 = unprojected_verticies[face[2]]
+                        if None in (up0, up1, up2):
+                            continue
 
                     uv_face = uv_faces[faceI]
                     uv0 = uv[uv_face[0]]
                     uv1 = uv[uv_face[1]]
                     uv2 = uv[uv_face[2]]
+                    
+                    if self.using_obj_filetype_format:
+                        unprojected_normal = self.normalT_camera_space((up0, up1, up2))
+                        light_dir = np.array([0, 1, 0])
+                        light_m = max(self.lighting_strictness, np.dot(light_dir, np.array(unprojected_normal)))
 
-                    unprojected_normal = self.normalT_camera_space((up0, up1, up2))
-                    light_dir = np.array([0, 1, 0])
-                    light_m = max(self.lighting_strictness, np.dot(light_dir, np.array(unprojected_normal)))
+                        cam0, cam1, cam2 = self.cam(up0, is_skybox), self.cam(up1, is_skybox), self.cam(up2, is_skybox)
 
-                    cam0, cam1, cam2 = self.cam(up0, is_skybox), self.cam(up1, is_skybox), self.cam(up2, is_skybox)
+                        clipped = self.clip_triangle_near([cam0, cam1, cam2], [uv0, uv1, uv2], near=0.1)
 
-                    clipped = self.clip_triangle_near([cam0, cam1, cam2], [uv0, uv1, uv2], near=0.1)
-
-                    for clipped_verts, clipped_uvs in clipped:
-                        def proj(v):
-                            f = 1.0 / math.tan(fov_rad / 2)
-                            return (
-                                (v[0] * f / -v[2]) * self.half_w + self.half_w,
-                                (v[1] * f / -v[2]) * self.half_h + self.half_h,
-                                v[2]
-                            )
-                        pp0, pp1, pp2 = proj(clipped_verts[0]), proj(clipped_verts[1]), proj(clipped_verts[2])
-                        all_tris.append((
-                            (pp0[2], pp1[2], pp2[2]),
-                            (pp0, pp1, pp2),
-                            clipped_uvs[0], clipped_uvs[1], clipped_uvs[2],
-                            light_m, is_skybox
-                        ))
+                        for clipped_verts, clipped_uvs in clipped:
+                            def proj(v):
+                                f = 1.0 / math.tan(fov_rad / 2)
+                                return (
+                                    (v[0] * f / -v[2]) * self.half_w + self.half_w,
+                                    (v[1] * f / -v[2]) * self.half_h + self.half_h,
+                                    v[2]
+                                )
+                            pp0, pp1, pp2 = proj(clipped_verts[0]), proj(clipped_verts[1]), proj(clipped_verts[2])
+                            all_tris.append((
+                                (pp0[2], pp1[2], pp2[2]),
+                                (pp0, pp1, pp2),
+                                clipped_uvs[0], clipped_uvs[1], clipped_uvs[2],
+                                light_m, is_skybox
+                            ))
+                    else:
+                        p0 = vertices[face[0]]
+                        p1 = vertices[face[1]]
+                        p2 = vertices[face[2]]
+                        if not (p0[2] < 0 or p1[2] < 0 or p2[2] < 0):
+                            all_tris.append((
+                                (p0[2], p1[2], p2[2]),
+                                (p0, p1, p2),
+                                uv0, uv1, uv2,
+                                1, is_skybox
+                            ))
 
             n = len(all_tris)
             if n == 0:
@@ -1209,15 +1223,14 @@ class Renderer3D:
                 self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
         else:
             for i in range(len(self.vertices_faces_list)):
-                for i in range(len(self.vertices_faces_list)):
-                    projected = self.project_3d_to_2d_flat(
-                            self.vertices_faces_list[i][0],
-                            fov_rad,
-                            tuple(self.camera.position),
-                            tuple(self.camera.rotation),
-                            self.vertices_faces_list[i][4]
-                        )
-                    self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1], self.vertices_faces_list[i][2], self.vertices_faces_list[i][3], self.vertices_faces_list[i][4]])
+                projected = self.project_3d_to_2d_flat(
+                        self.vertices_faces_list[i][0],
+                        fov_rad,
+                        tuple(self.camera.position),
+                        tuple(self.camera.rotation),
+                        self.vertices_faces_list[i][4]
+                    )
+                self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1], self.vertices_faces_list[i][2], self.vertices_faces_list[i][3], self.vertices_faces_list[i][4]])
             #if not self.is_mesh:
             self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
 
