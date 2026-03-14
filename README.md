@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/pypi/l/aiden3drenderer)](https://github.com/AidenKielby/3D-mesh-Renderer/blob/main/LICENSE)
 [![PyPI status](https://img.shields.io/pypi/status/aiden3drenderer)](https://pypi.org/project/aiden3drenderer/)
 [![GitHub stars](https://img.shields.io/github/stars/AidenKielby/3D-mesh-Renderer?style=social)](https://github.com/AidenKielby/3D-mesh-Renderer/stargazers)
-[![Last commit](https://img.shields.io/github/last-commit/AidenKielby/3D-mesh-Renderer)](https://<github.com/AidenKielby/3D-mesh-Renderer/commits/main)
+[![Last commit](https://img.shields.io/github/last-commit/AidenKielby/3D-mesh-Renderer)](https://github.com/AidenKielby/3D-mesh-Renderer/commits/main)
 
 </div>
 
@@ -26,13 +26,16 @@ A lightweight 3D wireframe renderer built with Pygame featuring custom projectio
 - **Multiple Object Support** - Render multiple shapes at the same time
 - **Custom Colors** - Ability to change colors on a per shape basis
 - **Simple Physics Engine** - easy to add physics to your render
-- **Obj Model Loading** - simple obj model loading
-- **Simple Rasterization** - simple and slow rasterization for video_renderer, GPU optimized for renderer
+- **OBJ Model Loading** - simple OBJ model loading
+- **Simple Rasterization** - software rasterization in `video_renderer`, GPU rasterization in `renderer`
 - **3 Render Modes** - `MESH`, `POLYGON_FILL`, and GPU `RASTERIZE`
 - **Raster Debug Views** - depth view and heat map toggles for debugging depth/raster output
 - **Texture Mapping in Raster Mode** - apply image textures to triangles with UVs
+- **Multi-Texture Raster Pipeline** - bind multiple texture layers and assign them per OBJ via texture index
 - **Runtime Shape Management** - toggle built-in shape set on/off at runtime
 - **OBJ Triangulation Support** - OBJ faces with more than 3 vertices are triangulated automatically
+- **Skybox Rendering** - generate cubemap skyboxes from manual UVs or cross-layout texture atlases
+- **Pause + Settings UI** - live switch renderer mode, toggle depth/heat views, adjust FOV and lighting strictness
 - **⚠️DISCLAIMER⚠️** - GPU rasterization does not currently work on mac as mac does not support compute shaders (GL 4.3) :( [Click HERE to see how to make a VM](#vm-workaround-for-macos)
 
 ## Gallery
@@ -143,10 +146,51 @@ renderer = Renderer3D()
 # renderer = Renderer3D(title="Custom Shapes Demo", load_default_shapes=False)
 # Above would give the renderer that title and the renderer would not use default shapes
 renderer.camera.position = [0, 0 ,0]
-# is_mesh = True for mesh, False for solid colors
 renderer.render_type = renderer_type.POLYGON_FILL
 renderer.run()
 ```
+
+### Pause Menu and Runtime Settings
+
+Press `Esc` during `renderer.run()` to open a pause menu with runtime settings:
+
+- Switch render path: `MESH`, `POLYGON_FILL`, or `RASTERIZE`
+- Toggle raster debug views (depth/heat)
+- Adjust FOV
+- Adjust lighting strictness used in lit filled/raster renders
+- Toggle OBJ-format rendering mode
+
+This lets you inspect or tune output without restarting the app.
+
+### Multiple Textures + Multiple OBJ Models
+
+You can load several textured OBJ files and map each object to a texture layer via `texture_index`:
+
+```python
+from aiden3drenderer import Renderer3D, obj_loader, renderer_type
+
+renderer = Renderer3D(width=1000, height=800)
+renderer.render_type = renderer_type.RASTERIZE
+renderer.using_obj_filetype_format = True
+
+# Base texture layer (index 0)
+renderer.add_texture_for_raster("./assets/model1.png")
+# Extra layer (index 1)
+renderer.add_texture_for_raster("./assets/model2.png")
+
+# Each OBJ chooses which texture layer to sample
+obj1 = obj_loader.get_obj("./assets/model1.obj", texture_index=0)
+obj2 = obj_loader.get_obj("./assets/model2.obj", texture_index=1, offset=(6, 0, 0))
+
+renderer.vertices_faces_list.append(obj1)
+renderer.vertices_faces_list.append(obj2)
+renderer.run()
+```
+
+Notes:
+
+- All textures added with `add_texture_for_raster(...)` must have the same resolution.
+- Run examples from the project root (the folder that contains `assets/`) so relative paths resolve correctly.
 
 #### Looped Demo
 ```python
@@ -155,7 +199,6 @@ from aiden3drenderer import Renderer3D, renderer_type
 # Create and run the renderer with all built-in shapes
 renderer = Renderer3D()
 renderer.camera.position = [0, 0 ,0]
-# is_mesh = True for mesh, False for solid colors
 renderer.render_type = renderer_type.POLYGON_FILL
 
 while True:
@@ -281,7 +324,7 @@ def generate_pyramid(grid_size=40, frame=0):
             
       # Height decreases with distance
       height = max(0, 10 - max_dist)
-      row.append(height)
+      row.append((x, height, y))
     matrix.append(row)
     
   return matrix
@@ -411,7 +454,7 @@ if __name__ == "__main__":
     main()
 ```
 
-## Obj Loading
+## OBJ Loading
 ### Examples:
 ```python
 from aiden3drenderer import Renderer3D, obj_loader, renderer_type
@@ -427,7 +470,7 @@ def main():
     renderer.render_type = renderer_type.POLYGON_FILL
     renderer.using_obj_filetype_format = True
 
-    obj = obj_loader.get_obj("./assets/alloy_forge_block.obj")
+    obj = obj_loader.get_obj("./assets/alloy_forge_block.obj", texture_index=0)
     #print(obj)
 
     renderer.vertices_faces_list.append(obj)
@@ -441,13 +484,14 @@ if __name__ == "__main__":
 ```
 
 ### About:
-You can import 3D models from .obj files as shown above, however the rendering is very glitchy. I've tried fixing it for a very long time but am unable. Assistance/feedback is greatly apreciated.
+You can import 3D models from `.obj` files as shown above. Some models may still show rendering artifacts in specific modes. Assistance and feedback are greatly appreciated.
 
 Additional OBJ loader features:
 
-- `obj_loader.get_obj(path, offset=(x, y, z))` supports world-space offsets during load.
+- `obj_loader.get_obj(path, texture_index, offset=(x, y, z))` supports per-object texture layer selection and world-space offsets during load.
 - Faces with more than 3 vertices are automatically triangulated.
 - UV coordinates (`vt`) are parsed when present and can be used by raster texture mode.
+- Skybox helper: `renderer.generate_cross_type_cubemap_skybox(radius, img_path)` quickly builds a cubemap from a cross-layout image.
 
 ## Video Renderer
 
@@ -462,7 +506,7 @@ from aiden3drenderer.video_renderer import VideoRenderer3D, VideoRendererObject
 
 # Create an object wrapper pointing to an OBJ file
 obj = VideoRendererObject("assets/alloy_forge_block.obj")
-# rotations_per_seccond is degrees-per-second around X, Y, Z
+# `rotations_per_seccond` is degrees-per-second around X, Y, Z
 obj.rotations_per_seccond = [10, 25, 0]
 obj.rotation = [0, 0, 0]
 
@@ -483,7 +527,7 @@ o2 = VideoRendererObject("assets/model2.obj")
 o2.rotations_per_seccond = [10, 0, 5]
 o2.anchor_pos = [4, 0, 8]
 
-# when having multiple objects, for now the farther object must be put first th the list
+# When using multiple objects, place farther objects first in the list for better draw ordering.
 vr = VideoRenderer3D(width=1200, height=800, fps=24, shapes=[o2, o1])
 vr.render("multiples.avi", duration_s=10, verbose=True)
 ```
@@ -529,6 +573,7 @@ Notes & tips:
 - **Space** - Move up
 - **Left Shift** - Move down
 - **Left Ctrl** - Speed boost (2x)
+- **Mouse Wheel** - Adjust camera FOV
 - **Arrow Keys** - Fine pitch/yaw adjustment
 - **Right Mouse + Drag** - Look around (pitch and yaw)
 
@@ -550,7 +595,7 @@ Notes & tips:
 - **Y** - Trefoil knot
 
 ### Other
-- **Escape** - Quit application
+- **Escape** - Open/close pause menu in `run()` mode (settings/back/close flow)
 
 ## Terrain Descriptions
 
@@ -663,7 +708,7 @@ from aiden3drenderer import Renderer3D
 
 renderer = Renderer3D(
     width=1200,      # Window width in pixels
-  height=800       # Window height in pixels
+    height=800       # Window height in pixels
 )
 renderer.run()
 ```
@@ -676,8 +721,12 @@ Useful `Renderer3D` methods and attributes:
 - `toggle_depth_view(bool)` - depth visualization in raster mode
 - `toggle_heat_map(bool)` - heat-map visualization in raster mode
 - `set_texture_for_raster(path)` - bind texture used in raster mode
+- `add_texture_for_raster(path)` - append another raster texture layer for multi-texture OBJ scenes
+- `generate_cross_type_cubemap_skybox(radius, img_path)` - create a cubemap skybox from a cross-layout image
+- `generate_cubemap_skybox(...)` - create a cubemap skybox from explicit UV regions
 - `using_obj_filetype_format` - set `True` when rendering `vertices_faces_list` OBJ-format data
-- `vertices_faces_list` - append parsed OBJ data from `obj_loader.get_obj(...)`
+- `vertices_faces_list` - append parsed OBJ data from `obj_loader.get_obj(path, texture_index, offset=...)`
+- `lighting_strictness` - tune directional lighting contrast for fill/raster modes
 
 ### Camera
 
@@ -712,7 +761,7 @@ def generate_function(grid_size=40, frame=0):
         color (tuple[int, int, int] | None): Base color for polygon/raster modes
         
     Returns:
-        list[list[float]]: grid_size x grid_size matrix of heights
+        list[list[tuple[float, float, float] | None]]: rectangular matrix of 3D points
     """
     return matrix
 ```
