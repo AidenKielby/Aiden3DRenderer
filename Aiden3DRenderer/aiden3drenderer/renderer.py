@@ -480,7 +480,7 @@ class Renderer3D:
         uv_faces = []
 
         if matrix is None or len(matrix) == 0 or len(matrix[0]) == 0:
-            return [[], faces, uv, uv_faces]
+            return [[], faces, uv, uv_faces, False, 0]
 
         h = len(matrix)
         w = len(matrix[0])
