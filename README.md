@@ -484,7 +484,7 @@ if __name__ == "__main__":
 ```
 
 ### About:
-You can import 3D models from `.obj` files as shown above. Some models may still show rendering artifacts in specific modes. Assistance and feedback are greatly appreciated.
+You can import 3D models from `.obj` files as shown above. Some models may still show rendering artifacts in POLYGON_FILL mode.
 
 Additional OBJ loader features:
 
