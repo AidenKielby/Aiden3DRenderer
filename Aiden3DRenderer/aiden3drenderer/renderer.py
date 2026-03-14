@@ -10,7 +10,6 @@ from enum import Enum
 import numpy as np
 import moderngl
 from PIL import Image
-from regex import P
 
 from .camera import Camera
 from .button import Button
@@ -323,6 +322,13 @@ class Renderer3D:
 
         def resume_button():
             self.show_pause_menu = False
+            self.show_settings_menu = False
+
+        def open_settings_menu():
+            self.show_settings_menu = True
+
+        def back_to_pause_menu():
+            self.show_settings_menu = False
 
         def set_render_mesh():
             self.set_render_type(renderer_type.MESH)
@@ -341,18 +347,117 @@ class Renderer3D:
             self.heat_map_enabled = not self.heat_map_enabled
             self.toggle_heat_map(self.heat_map_enabled)
 
+        def decrease_fov_setting():
+            self.camera.fov = max(30, self.camera.fov - 5)
+
+        def increase_fov_setting():
+            self.camera.fov = min(170, self.camera.fov + 5)
+
+        def decrease_lighting_setting():
+            self.lighting_strictness = max(0.0, self.lighting_strictness - 0.05)
+
+        def increase_lighting_setting():
+            self.lighting_strictness = min(1.0, self.lighting_strictness + 0.05)
+
+        def toggle_default_shapes_setting():
+            self.using_obj_filetype_format = not self.using_obj_filetype_format
+
         menu_w = width * 2 / 3
         menu_x = width / 6
         btn_h = height * 1 / 14
         y0 = height * 1 / 6
         gap = height * 1 / 40
 
-        self.resume_button = Button(self.screen, (menu_w, btn_h), (menu_x, y0), resume_button, text="Resume")
-        self.mesh_button = Button(self.screen, (menu_w, btn_h), (menu_x, y0 + (btn_h + gap) * 1), set_render_mesh, text="Renderer: Mesh")
-        self.fill_button = Button(self.screen, (menu_w, btn_h), (menu_x, y0 + (btn_h + gap) * 2), set_render_fill, text="Renderer: Fill")
-        self.raster_button = Button(self.screen, (menu_w, btn_h), (menu_x, y0 + (btn_h + gap) * 3), set_render_raster, text="Renderer: Raster")
-        self.depth_button = Button(self.screen, (menu_w, btn_h), (menu_x, y0 + (btn_h + gap) * 4), toggle_depth_setting, text="Depth View: OFF")
-        self.heat_button = Button(self.screen, (menu_w, btn_h), (menu_x, y0 + (btn_h + gap) * 5), toggle_heat_setting, text="Heat Map: OFF")
+        button_colors = {
+            "border": (230, 230, 230),
+            "text": (245, 245, 245),
+            "resume": (58, 146, 92),
+            "mesh": (62, 88, 148),
+            "fill": (101, 72, 150),
+            "raster": (152, 98, 44),
+            "depth": (54, 127, 127),
+            "heat": (148, 68, 68),
+            "settings": (88, 110, 146),
+            "fov": (120, 92, 164),
+            "light": (90, 136, 84),
+            "shapes": (122, 104, 70),
+            "quit": (168, 56, 56),
+        }
+
+        settings_col_w = (menu_w - gap) / 2
+        settings_x_left = menu_x
+        settings_x_right = menu_x + settings_col_w + gap
+
+        self.resume_button = Button(
+            self.screen, (menu_w, btn_h), (menu_x, y0), resume_button,
+            border_color=button_colors["border"], color=button_colors["resume"],
+            text="Resume", text_color=button_colors["text"]
+        )
+        self.settings_button = Button(
+            self.screen, (menu_w, btn_h), (menu_x, y0 + (btn_h + gap) * 1), open_settings_menu,
+            border_color=button_colors["border"], color=button_colors["settings"],
+            text="Settings", text_color=button_colors["text"]
+        )
+
+        self.mesh_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_left, y0 + (btn_h + gap) * 0), set_render_mesh,
+            border_color=button_colors["border"], color=button_colors["mesh"],
+            text="Renderer: Mesh", text_color=button_colors["text"]
+        )
+        self.fill_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_right, y0 + (btn_h + gap) * 0), set_render_fill,
+            border_color=button_colors["border"], color=button_colors["fill"],
+            text="Renderer: Fill", text_color=button_colors["text"]
+        )
+        self.raster_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_left, y0 + (btn_h + gap) * 1), set_render_raster,
+            border_color=button_colors["border"], color=button_colors["raster"],
+            text="Renderer: Raster", text_color=button_colors["text"]
+        )
+        self.depth_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_left, y0 + (btn_h + gap) * 2), toggle_depth_setting,
+            border_color=button_colors["border"], color=button_colors["depth"],
+            text="Depth View: OFF", text_color=button_colors["text"]
+        )
+        self.heat_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_right, y0 + (btn_h + gap) * 1), toggle_heat_setting,
+            border_color=button_colors["border"], color=button_colors["heat"],
+            text="Heat Map: OFF", text_color=button_colors["text"]
+        )
+
+        self.fov_down_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_left, y0 + (btn_h + gap) * 3), decrease_fov_setting,
+            border_color=button_colors["border"], color=button_colors["fov"],
+            text="FOV -", text_color=button_colors["text"]
+        )
+        self.fov_up_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_right, y0 + (btn_h + gap) * 3), increase_fov_setting,
+            border_color=button_colors["border"], color=button_colors["fov"],
+            text="FOV +", text_color=button_colors["text"]
+        )
+
+        self.light_down_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_left, y0 + (btn_h + gap) * 4), decrease_lighting_setting,
+            border_color=button_colors["border"], color=button_colors["light"],
+            text="Lighting -", text_color=button_colors["text"]
+        )
+        self.light_up_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_right, y0 + (btn_h + gap) * 4), increase_lighting_setting,
+            border_color=button_colors["border"], color=button_colors["light"],
+            text="Lighting +", text_color=button_colors["text"]
+        )
+
+        self.default_shapes_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_right, y0 + (btn_h + gap) * 2), toggle_default_shapes_setting,
+            border_color=button_colors["border"], color=button_colors["shapes"],
+            text="Default Shapes: ON", text_color=button_colors["text"]
+        )
+
+        self.settings_back_button = Button(
+            self.screen, (menu_w, btn_h), (menu_x, height - btn_h - height * 1 / 14), back_to_pause_menu,
+            border_color=button_colors["border"], color=button_colors["settings"],
+            text="Back", text_color=button_colors["text"]
+        )
 
         # Keep quit button at the bottom of the pause menu.
         self.exit_button = Button(
@@ -360,23 +465,39 @@ class Renderer3D:
             (menu_w, btn_h),
             (menu_x, height - btn_h - height * 1 / 14),
             exit_button,
-            text="Quit"
+            border_color=button_colors["border"],
+            color=button_colors["quit"],
+            text="Quit",
+            text_color=button_colors["text"]
         )
 
-        self.pause_buttons = [
+        self.main_pause_buttons = [
             self.resume_button,
+            self.settings_button,
+            self.exit_button,
+        ]
+
+        self.settings_buttons = [
             self.mesh_button,
             self.fill_button,
             self.raster_button,
             self.depth_button,
             self.heat_button,
-            self.exit_button,
+            self.fov_down_button,
+            self.fov_up_button,
+            self.light_down_button,
+            self.light_up_button,
+            self.default_shapes_button,
+            self.settings_back_button,
         ]
+
+        self.pause_buttons = self.main_pause_buttons + self.settings_buttons
 
         self.pause_title_font = pygame.font.Font(None, int(height * 0.08))
         self.pause_info_font = pygame.font.Font(None, int(height * 0.04))
 
         self.show_pause_menu = False
+        self.show_settings_menu = False
 
 
     def toggle_depth_view(self, b: bool):
@@ -397,14 +518,31 @@ class Renderer3D:
         title = self.pause_title_font.render("Paused", True, (255, 255, 255))
         self.screen.blit(title, title.get_rect(center=(self.half_w, self.height * 0.1)))
 
-        self.depth_button.text = f"Depth View: {'ON' if self.depth_view_enabled else 'OFF'}"
-        self.heat_button.text = f"Heat Map: {'ON' if self.heat_map_enabled else 'OFF'}"
-
         current_renderer = f"Current Renderer: {self.render_type.value}"
         info = self.pause_info_font.render(current_renderer, True, (240, 240, 240))
-        self.screen.blit(info, info.get_rect(center=(self.half_w, self.height * 0.88)))
+        self.screen.blit(info, info.get_rect(center=(self.half_w, self.height * 0.78)))
 
-        for button in self.pause_buttons:
+        for button in self.main_pause_buttons:
+            button.draw()
+
+    def draw_settings_menu(self):
+        overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        overlay.fill((20, 20, 20, 170))
+        self.screen.blit(overlay, (0, 0))
+
+        title = self.pause_title_font.render("Settings", True, (255, 255, 255))
+        self.screen.blit(title, title.get_rect(center=(self.half_w, self.height * 0.1)))
+
+        self.depth_button.text = f"Depth View: {'ON' if self.depth_view_enabled else 'OFF'}"
+        self.heat_button.text = f"Heat Map: {'ON' if self.heat_map_enabled else 'OFF'}"
+        self.default_shapes_button.text = f"OBJ Mode: {'ON' if self.using_obj_filetype_format else 'OFF'}"
+
+        info_line_1 = self.pause_info_font.render(f"FOV: {self.camera.fov:.0f}", True, (240, 240, 240))
+        info_line_2 = self.pause_info_font.render(f"Lighting Strictness: {self.lighting_strictness:.2f}", True, (240, 240, 240))
+        self.screen.blit(info_line_1, info_line_1.get_rect(center=(self.half_w, self.height * 0.75)))
+        self.screen.blit(info_line_2, info_line_2.get_rect(center=(self.half_w, self.height * 0.80)))
+
+        for button in self.settings_buttons:
             button.draw()
 
     def set_render_type(self, type: renderer_type):
@@ -1068,8 +1206,9 @@ class Renderer3D:
                                     v[2]
                                 )
                             pp0, pp1, pp2 = proj(clipped_verts[0]), proj(clipped_verts[1]), proj(clipped_verts[2])
+                            depth = (pp0[2] + pp1[2] + pp2[2]) / 3.0
                             all_tris.append((
-                                (pp0[2], pp1[2], pp2[2]),
+                                depth,
                                 (pp0, pp1, pp2),
                                 col
                             ))
@@ -1077,9 +1216,10 @@ class Renderer3D:
                         p0 = vertices[face[0]]
                         p1 = vertices[face[1]]
                         p2 = vertices[face[2]]
+                        depth = (p0[2] + p1[2] + p2[2]) / 3.0
                         if not (p0[2] < 0 or p1[2] < 0 or p2[2] < 0):
                             all_tris.append((
-                                (p0[2], p1[2], p2[2]),
+                                depth,
                                 (p0, p1, p2),
                                 col
                             ))
@@ -1137,9 +1277,9 @@ class Renderer3D:
                         p1 = vertices[face[1]]
                         p2 = vertices[face[2]]
                         if not (p0[2] < 0 or p1[2] < 0 or p2[2] < 0):
-                            pygame.draw.line(self.screen, (0, 0, 0), (p0[0],pp0[1]), (p1[0],p1[1]), 2)
-                            pygame.draw.line(self.screen, (0, 0, 0), (p1[0],pp1[1]), (p2[0],p2[1]), 2)
-                            pygame.draw.line(self.screen, (0, 0, 0), (p2[0],pp2[1]), (p0[0],p0[1]), 2)
+                            pygame.draw.line(self.screen, (0, 0, 0), (p0[0],p0[1]), (p1[0],p1[1]), 2)
+                            pygame.draw.line(self.screen, (0, 0, 0), (p1[0],p1[1]), (p2[0],p2[1]), 2)
+                            pygame.draw.line(self.screen, (0, 0, 0), (p2[0],p2[1]), (p0[0],p0[1]), 2)
 
     
 
@@ -1293,10 +1433,17 @@ class Renderer3D:
                     
                 self.camera.handle_mouse_events(event)
                 if self.show_pause_menu:
-                    for button in self.pause_buttons:
+                    active_buttons = self.settings_buttons if self.show_settings_menu else self.main_pause_buttons
+                    for button in active_buttons:
                         button.update(pygame.mouse.get_pos(), event)
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                    self.show_pause_menu = not self.show_pause_menu
+                    if not self.show_pause_menu:
+                        self.show_pause_menu = True
+                    elif self.show_settings_menu:
+                        self.show_settings_menu = False
+                    else:
+                        self.show_pause_menu = False
+                        self.show_settings_menu = False
             
             keys = pygame.key.get_pressed()
             
@@ -1351,9 +1498,15 @@ class Renderer3D:
             self.projected_vertices_faces_list = []
             
             for button in self.pause_buttons:
-                button.toggled = self.show_pause_menu
+                button.toggled = False
             if self.show_pause_menu:
-                self.draw_pause_menu()
+                active_buttons = self.settings_buttons if self.show_settings_menu else self.main_pause_buttons
+                for button in active_buttons:
+                    button.toggled = True
+                if self.show_settings_menu:
+                    self.draw_settings_menu()
+                else:
+                    self.draw_pause_menu()
 
             pygame.display.update()
         

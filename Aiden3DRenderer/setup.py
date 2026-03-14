@@ -40,6 +40,7 @@ setup(
         "moderngl>=5.12.0",
         "pillow>=12.1.0",
     ],
+    package_data={"aiden3drenderer": ["fonts/*.ttf"]},
     extras_require={
         "dev": ["pytest>=7.0", "black", "flake8"],
     },

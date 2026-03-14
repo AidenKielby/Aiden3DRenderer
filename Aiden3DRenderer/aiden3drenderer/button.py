@@ -1,5 +1,9 @@
 import pygame
+from importlib import resources
 
+def _get_font_path():
+    # Works in source tree and installed package
+    return str(resources.files("aiden3drenderer").joinpath("fonts/Jersey25-Regular.ttf"))
 
 class Button:
     def __init__(self, screen: pygame.display, size: tuple, position: tuple, on_press, border_color = (0,0,0), color = (100,100,100), text = "", text_color = (0, 0, 0)):
@@ -11,7 +15,7 @@ class Button:
         self.col = color
         self.rect = pygame.Rect(position[0], position[1], size[0], size[1])
         pygame.font.init()
-        self.font = self.get_fitting_font(text, size)
+        self.font = self.get_fitting_font(text, size, font_path=_get_font_path())
         self.text = text
         self.text_color = text_color
         self.toggled = False
