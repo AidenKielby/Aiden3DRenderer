@@ -1,6 +1,6 @@
 import numpy as np
 
-def get_obj(file_path: str, offset=(0,0,0)):
+def get_obj(file_path: str, texture_index: int, offset=(0,0,0)):
     vertices = []
     tex_coords = []
     vertex_faces = []
@@ -42,4 +42,4 @@ def get_obj(file_path: str, offset=(0,0,0)):
                         if vt_idx:
                             texture_faces.append((vt_idx[0], vt_idx[i], vt_idx[i+1]))
 
-    return [vertices, vertex_faces, tex_coords, texture_faces]
+    return [vertices, vertex_faces, tex_coords, texture_faces, False, texture_index]

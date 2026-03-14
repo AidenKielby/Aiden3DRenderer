@@ -14,7 +14,9 @@ def main():
     renderer.render_type = renderer_type.RASTERIZE
     renderer.using_obj_filetype_format = True
 
-    obj = obj_loader.get_obj("./assets/skull.obj")
+    obj = obj_loader.get_obj("./assets/skull.obj", 0)
+
+    obj1 = obj_loader.get_obj("./assets/monkey.obj", 1)
 
     renderer.lighting_strictness = 0.5
 
@@ -22,7 +24,9 @@ def main():
     renderer.camera.speed = 0.01
 
     renderer.vertices_faces_list.append(obj)
+    renderer.vertices_faces_list.append(obj1)
     renderer.set_texture_for_raster("./assets/skull.png")
+    renderer.add_texture_for_raster("./assets/monkey.png")
 
     eps_x = 0.5 / 1024
     eps_y = 0.5 / 768
