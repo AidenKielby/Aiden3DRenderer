@@ -1524,10 +1524,20 @@ class Renderer3D:
                 pygame.quit()
                 
             self.camera.handle_mouse_events(event)
+            if self.show_pause_menu:
+                active_buttons = self.settings_buttons if self.show_settings_menu else self.main_pause_buttons
+                for button in active_buttons:
+                    button.update(pygame.mouse.get_pos(), event)
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                if not self.show_pause_menu:
+                    self.show_pause_menu = True
+                elif self.show_settings_menu:
+                    self.show_settings_menu = False
+                else:
+                    self.show_pause_menu = False
+                    self.show_settings_menu = False
         
         keys = pygame.key.get_pressed()
-        if keys[pygame.K_ESCAPE]:
-            pygame.quit()
         
         self.camera.update(keys)
         
@@ -1579,6 +1589,17 @@ class Renderer3D:
         self.triangle_color_list_2 = []
         self.projections_list = []
         self.projected_vertices_faces_list = []
+
+        for button in self.pause_buttons:
+            button.toggled = False
+        if self.show_pause_menu:
+            active_buttons = self.settings_buttons if self.show_settings_menu else self.main_pause_buttons
+            for button in active_buttons:
+                button.toggled = True
+            if self.show_settings_menu:
+                self.draw_settings_menu()
+            else:
+                self.draw_pause_menu()
         
         pygame.display.update()
         
