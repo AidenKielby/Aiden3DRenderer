@@ -12,6 +12,7 @@ import moderngl
 from PIL import Image
 
 from .camera import Camera
+from .button import Button
 
 CUSTOM_SHAPES = {}
 
@@ -257,6 +258,8 @@ class Renderer3D:
         self.is_starting = True
 
         self.render_type = renderer_type.MESH
+        self.depth_view_enabled = False
+        self.heat_map_enabled = False
         self.triangle_base_color_1= (150, 0, 150)
         self.triangle_base_color_2 = (50, 0, 50)
         self.triangle_color_list_1= []
@@ -313,13 +316,234 @@ class Renderer3D:
         self.texture = None
         self.skybox_texture = None
 
+        def exit_button():
+            pygame.quit()
+            sys.exit()
+
+        def resume_button():
+            self.show_pause_menu = False
+            self.show_settings_menu = False
+
+        def open_settings_menu():
+            self.show_settings_menu = True
+
+        def back_to_pause_menu():
+            self.show_settings_menu = False
+
+        def set_render_mesh():
+            self.set_render_type(renderer_type.MESH)
+
+        def set_render_fill():
+            self.set_render_type(renderer_type.POLYGON_FILL)
+
+        def set_render_raster():
+            self.set_render_type(renderer_type.RASTERIZE)
+
+        def toggle_depth_setting():
+            self.depth_view_enabled = not self.depth_view_enabled
+            self.toggle_depth_view(self.depth_view_enabled)
+
+        def toggle_heat_setting():
+            self.heat_map_enabled = not self.heat_map_enabled
+            self.toggle_heat_map(self.heat_map_enabled)
+
+        def decrease_fov_setting():
+            self.camera.fov = max(30, self.camera.fov - 5)
+
+        def increase_fov_setting():
+            self.camera.fov = min(170, self.camera.fov + 5)
+
+        def decrease_lighting_setting():
+            self.lighting_strictness = max(0.0, self.lighting_strictness - 0.05)
+
+        def increase_lighting_setting():
+            self.lighting_strictness = min(1.0, self.lighting_strictness + 0.05)
+
+        def toggle_default_shapes_setting():
+            self.using_obj_filetype_format = not self.using_obj_filetype_format
+
+        menu_w = width * 2 / 3
+        menu_x = width / 6
+        btn_h = height * 1 / 14
+        y0 = height * 1 / 6
+        gap = height * 1 / 40
+
+        button_colors = {
+            "border": (230, 230, 230),
+            "text": (245, 245, 245),
+            "resume": (58, 146, 92),
+            "mesh": (62, 88, 148),
+            "fill": (101, 72, 150),
+            "raster": (152, 98, 44),
+            "depth": (54, 127, 127),
+            "heat": (148, 68, 68),
+            "settings": (88, 110, 146),
+            "fov": (120, 92, 164),
+            "light": (90, 136, 84),
+            "shapes": (122, 104, 70),
+            "quit": (168, 56, 56),
+        }
+
+        settings_col_w = (menu_w - gap) / 2
+        settings_x_left = menu_x
+        settings_x_right = menu_x + settings_col_w + gap
+
+        self.resume_button = Button(
+            self.screen, (menu_w, btn_h), (menu_x, y0), resume_button,
+            border_color=button_colors["border"], color=button_colors["resume"],
+            text="Resume", text_color=button_colors["text"]
+        )
+        self.settings_button = Button(
+            self.screen, (menu_w, btn_h), (menu_x, y0 + (btn_h + gap) * 1), open_settings_menu,
+            border_color=button_colors["border"], color=button_colors["settings"],
+            text="Settings", text_color=button_colors["text"]
+        )
+
+        self.mesh_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_left, y0 + (btn_h + gap) * 0), set_render_mesh,
+            border_color=button_colors["border"], color=button_colors["mesh"],
+            text="Renderer: Mesh", text_color=button_colors["text"]
+        )
+        self.fill_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_right, y0 + (btn_h + gap) * 0), set_render_fill,
+            border_color=button_colors["border"], color=button_colors["fill"],
+            text="Renderer: Fill", text_color=button_colors["text"]
+        )
+        self.raster_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_left, y0 + (btn_h + gap) * 1), set_render_raster,
+            border_color=button_colors["border"], color=button_colors["raster"],
+            text="Renderer: Raster", text_color=button_colors["text"]
+        )
+        self.depth_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_left, y0 + (btn_h + gap) * 2), toggle_depth_setting,
+            border_color=button_colors["border"], color=button_colors["depth"],
+            text="Depth View: OFF", text_color=button_colors["text"]
+        )
+        self.heat_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_right, y0 + (btn_h + gap) * 1), toggle_heat_setting,
+            border_color=button_colors["border"], color=button_colors["heat"],
+            text="Heat Map: OFF", text_color=button_colors["text"]
+        )
+
+        self.fov_down_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_left, y0 + (btn_h + gap) * 3), decrease_fov_setting,
+            border_color=button_colors["border"], color=button_colors["fov"],
+            text="FOV -", text_color=button_colors["text"]
+        )
+        self.fov_up_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_right, y0 + (btn_h + gap) * 3), increase_fov_setting,
+            border_color=button_colors["border"], color=button_colors["fov"],
+            text="FOV +", text_color=button_colors["text"]
+        )
+
+        self.light_down_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_left, y0 + (btn_h + gap) * 4), decrease_lighting_setting,
+            border_color=button_colors["border"], color=button_colors["light"],
+            text="Lighting -", text_color=button_colors["text"]
+        )
+        self.light_up_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_right, y0 + (btn_h + gap) * 4), increase_lighting_setting,
+            border_color=button_colors["border"], color=button_colors["light"],
+            text="Lighting +", text_color=button_colors["text"]
+        )
+
+        self.default_shapes_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_right, y0 + (btn_h + gap) * 2), toggle_default_shapes_setting,
+            border_color=button_colors["border"], color=button_colors["shapes"],
+            text="Default Shapes: ON", text_color=button_colors["text"]
+        )
+
+        self.settings_back_button = Button(
+            self.screen, (menu_w, btn_h), (menu_x, height - btn_h - height * 1 / 14), back_to_pause_menu,
+            border_color=button_colors["border"], color=button_colors["settings"],
+            text="Back", text_color=button_colors["text"]
+        )
+
+        # Keep quit button at the bottom of the pause menu.
+        self.exit_button = Button(
+            self.screen,
+            (menu_w, btn_h),
+            (menu_x, height - btn_h - height * 1 / 14),
+            exit_button,
+            border_color=button_colors["border"],
+            color=button_colors["quit"],
+            text="Quit",
+            text_color=button_colors["text"]
+        )
+
+        self.main_pause_buttons = [
+            self.resume_button,
+            self.settings_button,
+            self.exit_button,
+        ]
+
+        self.settings_buttons = [
+            self.mesh_button,
+            self.fill_button,
+            self.raster_button,
+            self.depth_button,
+            self.heat_button,
+            self.fov_down_button,
+            self.fov_up_button,
+            self.light_down_button,
+            self.light_up_button,
+            self.default_shapes_button,
+            self.settings_back_button,
+        ]
+
+        self.pause_buttons = self.main_pause_buttons + self.settings_buttons
+
+        self.pause_title_font = pygame.font.Font(None, int(height * 0.08))
+        self.pause_info_font = pygame.font.Font(None, int(height * 0.04))
+
+        self.show_pause_menu = False
+        self.show_settings_menu = False
+
+
     def toggle_depth_view(self, b: bool):
+        self.depth_view_enabled = b
         if sys.platform != "darwin":
             self.compute_shader["depthView"].value = b
     
     def toggle_heat_map(self, b: bool):
+        self.heat_map_enabled = b
         if sys.platform != "darwin":
             self.compute_shader["heatMap"].value = b
+
+    def draw_pause_menu(self):
+        overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        overlay.fill((20, 20, 20, 170))
+        self.screen.blit(overlay, (0, 0))
+
+        title = self.pause_title_font.render("Paused", True, (255, 255, 255))
+        self.screen.blit(title, title.get_rect(center=(self.half_w, self.height * 0.1)))
+
+        current_renderer = f"Current Renderer: {self.render_type.value}"
+        info = self.pause_info_font.render(current_renderer, True, (240, 240, 240))
+        self.screen.blit(info, info.get_rect(center=(self.half_w, self.height * 0.78)))
+
+        for button in self.main_pause_buttons:
+            button.draw()
+
+    def draw_settings_menu(self):
+        overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        overlay.fill((20, 20, 20, 170))
+        self.screen.blit(overlay, (0, 0))
+
+        title = self.pause_title_font.render("Settings", True, (255, 255, 255))
+        self.screen.blit(title, title.get_rect(center=(self.half_w, self.height * 0.1)))
+
+        self.depth_button.text = f"Depth View: {'ON' if self.depth_view_enabled else 'OFF'}"
+        self.heat_button.text = f"Heat Map: {'ON' if self.heat_map_enabled else 'OFF'}"
+        self.default_shapes_button.text = f"OBJ Mode: {'ON' if self.using_obj_filetype_format else 'OFF'}"
+
+        info_line_1 = self.pause_info_font.render(f"FOV: {self.camera.fov:.0f}", True, (240, 240, 240))
+        info_line_2 = self.pause_info_font.render(f"Lighting Strictness: {self.lighting_strictness:.2f}", True, (240, 240, 240))
+        self.screen.blit(info_line_1, info_line_1.get_rect(center=(self.half_w, self.height * 0.75)))
+        self.screen.blit(info_line_2, info_line_2.get_rect(center=(self.half_w, self.height * 0.80)))
+
+        for button in self.settings_buttons:
+            button.draw()
 
     def set_render_type(self, type: renderer_type):
         self.render_type = type
@@ -412,7 +636,7 @@ class Renderer3D:
                 (4, 6, 5), (5, 6, 7),    # right
                 (9, 8, 11), (11, 8, 10), # backward
                 (12, 14, 13), (13, 14, 15), # forward
-                (16, 18, 17), (16, 19, 18), # bottom
+                (16, 19, 17), (16, 18, 19), # bottom
                 (22, 23, 20), (20, 23, 21), # top
             ]
 
@@ -430,7 +654,26 @@ class Renderer3D:
             self.compute_shader["skyTex"].value = 1 
 
             self.vertices_faces_list.append([verts.tolist(),faces,uvs,uv_faces, True, 0])
-        
+    
+    def generate_cross_type_cubemap_skybox(self, radius: int, img_path):
+        img_w, img_h = Image.open(img_path).size
+        eps_x = 1.0 / img_w
+        eps_y = 1.0 / img_h
+
+        self.generate_cubemap_skybox(radius, img_path,
+            # right: 
+            ((0.75-eps_x,   1/3+eps_y), (0.5+eps_x,     1/3+eps_y), (0.75-eps_x,   2/3-eps_y), (0.5+eps_x,     2/3-eps_y)),
+            # left:
+            ((0.25-eps_x,   1/3+eps_y), (0+eps_x,       1/3+eps_y), (0.25-eps_x,   2/3-eps_y), (0+eps_x,       2/3-eps_y)),
+            # top: 
+            ((0.5-eps_x,    1-eps_y),   (0.25+eps_x,    1-eps_y),   (0.5-eps_x,    2/3+eps_y), (0.25+eps_x,    2/3+eps_y)),
+            # bottom:
+            ((0.5-eps_x,     1/3-eps_y), (0.25+eps_x,   1/3-eps_y), (0.5-eps_x,     0+eps_y),   (0.25+eps_x,   0+eps_y)),
+            # forward:
+            ((0.75+eps_x,    1/3+eps_y), (1-eps_x,      1/3+eps_y), (0.75+eps_x,    2/3-eps_y), (1-eps_x,      2/3-eps_y)),
+            # back: 
+            ((0.25+eps_x,    1/3+eps_y), (0.5-eps_x,    1/3+eps_y), (0.25+eps_x,    2/3-eps_y), (0.5-eps_x,    2/3-eps_y)),
+        )
 
     def normalize(self, v):
         length = math.sqrt(v[0]**2 + v[1]**2 + v[2]**2)
@@ -909,109 +1152,135 @@ class Renderer3D:
         elif self.render_type == renderer_type.POLYGON_FILL:
             all_tris = []
             s = True
+            fov_rad = math.radians(self.camera.fov)
             for matI in range(len(matrix)):
                 mat = matrix[matI]
                 if mat is None:
                     continue
-                vertices, faces, *_ = mat
-                unprojected_verticies, same_faces, *_  = self.vertices_faces_list[matI]
-                for face in faces:
-                    p0 = vertices[face[0]]
-                    p1 = vertices[face[1]]
-                    p2 = vertices[face[2]]
 
-                    up0 = unprojected_verticies[face[0]]
-                    up1 = unprojected_verticies[face[1]]
-                    up2 = unprojected_verticies[face[2]]
-                    if None in (p0, p1, p2):
-                        continue
-                    if p0[2] <= 0.1 or p1[2] <= 0.1 or p2[2] <= 0.1:
-                        continue
+                vertices, faces, uv, uv_faces, is_skybox, texture_index = mat
+                if self.using_obj_filetype_format:
+                    unprojected_verticies, *_ = self.vertices_faces_list[matI]
 
-                    # Consistent depth: average of projected Z
-                    depth = max(p0[2], p1[2], p2[2])
-                    unprojected_normal = self.normalT_camera_space((up0, up1, up2))
-                    # Only cull if normal clearly faces away — flip sign if needed
-                    up0,up1,up2 = self.to_cam_space(up0), self.to_cam_space(up1), self.to_cam_space(up2)
-                    if None in (up0, up1, up2):
-                        continue
-                    normal = self.normalT_camera_space((up0, up1, up2))
+                for faceI in range(len(faces)):
+                    face = faces[faceI]
 
-                    """if normal[2] >= 0:
-                        continue"""
-                    if unprojected_normal[0] > 0:
-                        col = (255, 0, 0)
-                    elif unprojected_normal[0] < 0:
-                        col = (155, 0, 0)
-                    elif unprojected_normal[1] > 0:
-                        col = (0, 255, 0)
-                    elif unprojected_normal[1] < 0:
-                        col = (0, 155, 0)
-                    elif unprojected_normal[2] > 0:
-                        col = (0, 0, 255)
-                    elif unprojected_normal[2] < 0:
-                        col = (0, 0, 155)
+                    if self.using_obj_filetype_format:
+                        up0 = unprojected_verticies[face[0]]
+                        up1 = unprojected_verticies[face[1]]
+                        up2 = unprojected_verticies[face[2]]
+                        if None in (up0, up1, up2):
+                            continue
 
-                    view_dir = (0, 0, 1)  # if camera faces +Z in camera space
-                    dot = normal[0]*view_dir[0] + normal[1]*view_dir[1] + normal[2]*view_dir[2]
-                    """if dot >= 0:
-                        continue"""
+                    uv_face = uv_faces[faceI]
+                    uv0 = uv[uv_face[0]]
+                    uv1 = uv[uv_face[1]]
+                    uv2 = uv[uv_face[2]]
+                    
+                    if self.using_obj_filetype_format:
+                        unprojected_normal = self.normalT_camera_space((up0, up1, up2))
 
-                    #col = self.triangle_base_color_1 if s else self.triangle_base_color_2
-                    s = not s
-                    all_tris.append((depth, (p0, p1, p2), col))
+                        if unprojected_normal[0] > 0:
+                            col = (255, 0, 0)
+                        elif unprojected_normal[0] < 0:
+                            col = (155, 0, 0)
+                        elif unprojected_normal[1] > 0:
+                            col = (0, 255, 0)
+                        elif unprojected_normal[1] < 0:
+                            col = (0, 155, 0)
+                        elif unprojected_normal[2] > 0:
+                            col = (0, 0, 255)
+                        elif unprojected_normal[2] < 0:
+                            col = (0, 0, 155)
+
+                        cam0, cam1, cam2 = self.cam(up0, is_skybox), self.cam(up1, is_skybox), self.cam(up2, is_skybox)
+
+                        clipped = self.clip_triangle_near([cam0, cam1, cam2], [uv0, uv1, uv2], near=0.1)
+
+                        for clipped_verts, clipped_uvs in clipped:
+                            def proj(v):
+                                f = 1.0 / math.tan(fov_rad / 2)
+                                return (
+                                    (v[0] * f / -v[2]) * self.half_w + self.half_w,
+                                    (v[1] * f / -v[2]) * self.half_h + self.half_h,
+                                    v[2]
+                                )
+                            pp0, pp1, pp2 = proj(clipped_verts[0]), proj(clipped_verts[1]), proj(clipped_verts[2])
+                            depth = (pp0[2] + pp1[2] + pp2[2]) / 3.0
+                            all_tris.append((
+                                depth,
+                                (pp0, pp1, pp2),
+                                col
+                            ))
+                    else:
+                        p0 = vertices[face[0]]
+                        p1 = vertices[face[1]]
+                        p2 = vertices[face[2]]
+                        depth = (p0[2] + p1[2] + p2[2]) / 3.0
+                        if not (p0[2] < 0 or p1[2] < 0 or p2[2] < 0):
+                            all_tris.append((
+                                depth,
+                                (p0, p1, p2),
+                                col
+                            ))
 
             all_tris.sort(key=lambda t: t[0], reverse=True)
             for _, tri, col in all_tris:
                 pygame.draw.polygon(self.screen, col, [(v[0], v[1]) for v in tri], 0)
         elif self.render_type == renderer_type.MESH:
+            fov_rad = math.radians(self.camera.fov)
             for matI in range(len(matrix)):
                 mat = matrix[matI]
                 if mat is None:
                     continue
-                vertices, faces, *_  = mat
-                # Try to get the original 3D vertices for proper backface culling
-                unprojected_vertices = None
-                if matI < len(self.vertices_faces_list):
-                    try:
-                        unprojected_vertices, _ = self.vertices_faces_list[matI]
-                    except Exception:
-                        unprojected_vertices = None
 
-                for face in faces:
-                    p0 = vertices[face[0]]
-                    p1 = vertices[face[1]]
-                    p2 = vertices[face[2]]
-                    if None in (p0, p1, p2):
-                        continue
+                vertices, faces, uv, uv_faces, is_skybox, texture_index = mat
+                if self.using_obj_filetype_format:
+                    unprojected_verticies, *_ = self.vertices_faces_list[matI]
 
-                    # Backface culling: if we have original 3D verts, compute normal in camera space
-                    # and skip faces that face away from the camera.
-                    skip_face = False
-                    if unprojected_vertices is not None:
-                        up0 = unprojected_vertices[face[0]]
-                        up1 = unprojected_vertices[face[1]]
-                        up2 = unprojected_vertices[face[2]]
+                for faceI in range(len(faces)):
+                    face = faces[faceI]
+
+                    if self.using_obj_filetype_format:
+                        up0 = unprojected_verticies[face[0]]
+                        up1 = unprojected_verticies[face[1]]
+                        up2 = unprojected_verticies[face[2]]
                         if None in (up0, up1, up2):
-                            skip_face = True
-                        else:
-                            cu0 = self.to_cam_space(up0)
-                            cu1 = self.to_cam_space(up1)
-                            cu2 = self.to_cam_space(up2)
-                            if None in (cu0, cu1, cu2):
-                                skip_face = True
-                            else:
-                                normal = self.normalT_camera_space((cu0, cu1, cu2))
-                                # If normal's Z component faces away (positive), cull
-                                """if normal[2] >= 0:
-                                    skip_face = True"""
+                            continue
 
-                    if skip_face:
-                        continue
+                    uv_face = uv_faces[faceI]
+                    uv0 = uv[uv_face[0]]
+                    uv1 = uv[uv_face[1]]
+                    uv2 = uv[uv_face[2]]
+                    
+                    if self.using_obj_filetype_format:
+                        unprojected_normal = self.normalT_camera_space((up0, up1, up2))
 
-                    pygame.draw.line(self.screen, (0, 0, 0), p0, p1, 2)
-                    pygame.draw.line(self.screen, (0, 0, 0), p1, p2, 2)
-                    pygame.draw.line(self.screen, (0, 0, 0), p2, p0, 2)
+                        cam0, cam1, cam2 = self.cam(up0, is_skybox), self.cam(up1, is_skybox), self.cam(up2, is_skybox)
+
+                        clipped = self.clip_triangle_near([cam0, cam1, cam2], [uv0, uv1, uv2], near=0.1)
+
+                        for clipped_verts, clipped_uvs in clipped:
+                            def proj(v):
+                                f = 1.0 / math.tan(fov_rad / 2)
+                                return (
+                                    (v[0] * f / -v[2]) * self.half_w + self.half_w,
+                                    (v[1] * f / -v[2]) * self.half_h + self.half_h,
+                                    v[2]
+                                )
+                            pp0, pp1, pp2 = proj(clipped_verts[0]), proj(clipped_verts[1]), proj(clipped_verts[2])
+                            pygame.draw.line(self.screen, (0, 0, 0), (pp0[0],pp0[1]), (pp1[0],pp1[1]), 2)
+                            pygame.draw.line(self.screen, (0, 0, 0), (pp1[0],pp1[1]), (pp2[0],pp2[1]), 2)
+                            pygame.draw.line(self.screen, (0, 0, 0), (pp2[0],pp2[1]), (pp0[0],pp0[1]), 2)
+                    else:
+                        p0 = vertices[face[0]]
+                        p1 = vertices[face[1]]
+                        p2 = vertices[face[2]]
+                        if not (p0[2] < 0 or p1[2] < 0 or p2[2] < 0):
+                            pygame.draw.line(self.screen, (0, 0, 0), (p0[0],p0[1]), (p1[0],p1[1]), 2)
+                            pygame.draw.line(self.screen, (0, 0, 0), (p1[0],p1[1]), (p2[0],p2[1]), 2)
+                            pygame.draw.line(self.screen, (0, 0, 0), (p2[0],p2[1]), (p0[0],p0[1]), 2)
+
     
 
 
@@ -1163,10 +1432,20 @@ class Renderer3D:
                     running = False
                     
                 self.camera.handle_mouse_events(event)
+                if self.show_pause_menu:
+                    active_buttons = self.settings_buttons if self.show_settings_menu else self.main_pause_buttons
+                    for button in active_buttons:
+                        button.update(pygame.mouse.get_pos(), event)
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    if not self.show_pause_menu:
+                        self.show_pause_menu = True
+                    elif self.show_settings_menu:
+                        self.show_settings_menu = False
+                    else:
+                        self.show_pause_menu = False
+                        self.show_settings_menu = False
             
             keys = pygame.key.get_pressed()
-            if keys[pygame.K_ESCAPE]:
-                running = False
             
             self.camera.update(keys)
             
@@ -1200,25 +1479,34 @@ class Renderer3D:
                     ]
                     self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
             else:
-                if self.render_type == renderer_type.RASTERIZE:
-                    for i in range(len(self.vertices_faces_list)):
-                        projected = self.project_3d_to_2d_flat(
-                                self.vertices_faces_list[i][0],
-                                fov_rad,
-                                tuple(self.camera.position),
-                                tuple(self.camera.rotation),
-                                self.vertices_faces_list[i][4]
-                            )
-                        self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1], self.vertices_faces_list[i][2], self.vertices_faces_list[i][3], self.vertices_faces_list[i][4], self.vertices_faces_list[i][5]])
-                    #if not self.is_mesh:
-                    self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
+                for i in range(len(self.vertices_faces_list)):
+                    projected = self.project_3d_to_2d_flat(
+                            self.vertices_faces_list[i][0],
+                            fov_rad,
+                            tuple(self.camera.position),
+                            tuple(self.camera.rotation),
+                            self.vertices_faces_list[i][4]
+                        )
+                    self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1], self.vertices_faces_list[i][2], self.vertices_faces_list[i][3], self.vertices_faces_list[i][4], self.vertices_faces_list[i][5]])
+                #if not self.is_mesh:
+                self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
 
             self.grid_coords_list = []
             self.triangle_color_list_1 = []
             self.triangle_color_list_2 = []
             self.projections_list = []
             self.projected_vertices_faces_list = []
-
+            
+            for button in self.pause_buttons:
+                button.toggled = False
+            if self.show_pause_menu:
+                active_buttons = self.settings_buttons if self.show_settings_menu else self.main_pause_buttons
+                for button in active_buttons:
+                    button.toggled = True
+                if self.show_settings_menu:
+                    self.draw_settings_menu()
+                else:
+                    self.draw_pause_menu()
 
             pygame.display.update()
         
