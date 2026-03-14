@@ -52,7 +52,7 @@ struct Triangle {
     vec2 uv3;    // 56 - 64
 
     float is_skybox;   // 64 - 68
-    float pad; // 68 - 72
+    float texture_index; // 68 - 72
     float pad1; // 72 - 76
     float pad2; // 76 - 80
 };
@@ -67,7 +67,7 @@ layout(std430, binding = 1) buffer DepthBuffer {
 
 layout(rgba32f, binding = 0) writeonly uniform image2D destTex;
 
-uniform sampler2D inTex;
+uniform sampler2DArray inTex;
 uniform sampler2D skyTex;
 uniform uint tri_count;
 
@@ -194,7 +194,7 @@ void main() {
                                 color = texture(skyTex, uv);
                             }
                             else{
-                                color = texture(inTex, uv);
+                                color = texture(inTex, vec3(uv, local_tris[j].texture_index));
                             }
 
                             best_color = vec3(color.x * local_tris[j].light_mult, color.y * local_tris[j].light_mult, color.z * local_tris[j].light_mult);
@@ -227,7 +227,7 @@ tri_dtype = np.dtype([
     ('light_mult', 'f4', 1),
     ('uv', 'f4', (3, 2)),     # 3 positions (u, v)
     ('is_skybox', 'f4', 1),
-    ('pad', 'f4', 1),
+    ('texture_index', 'f4', 1),
     ('pad1', 'f4', 1),
     ('pad2', 'f4', 1),
 ])
@@ -271,6 +271,10 @@ class Renderer3D:
         self.is_using_default_shapes = load_default_shapes
         self._default_shape_names = set()
         self._default_shapes_loaded = False
+
+        self.last_texture_array = None
+        self.last_size = 1
+        self.texture_layers = []
 
         self.lighting_strictness = 0.5
 
@@ -324,16 +328,62 @@ class Renderer3D:
         if sys.platform != "darwin":
             if self.texture is not None:
                 self.texture.release()
+
             self.texture_path = img_path
             img = Image.open(self.texture_path).convert("RGBA")
             img_data = np.array(img, dtype='u1')
 
-            self.texture = self.ctx.texture(img.size, 4, img_data.tobytes())
-            self.texture.use(location=0)  # bind to texture unit 0
+            self.texture_layers = [img_data]
+            self.last_texture_array = img_data
+            self.last_size = 1
+
+            array_data = np.stack(self.texture_layers, axis=0)  # (layers, h, w, 4)
+            self.texture = self.ctx.texture_array(
+                size=(img.size[0], img.size[1], self.last_size),
+                components=4,
+                data=array_data.tobytes()
+            )
+            self.texture.use(location=0)
             self.texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
             self.texture.repeat_x = False
             self.texture.repeat_y = False
-            self.compute_shader["inTex"].value = 0 
+            self.compute_shader["inTex"].value = 0
+
+    def add_texture_for_raster(self, img_path):
+        if sys.platform != "darwin":
+            if not self.texture_layers:
+                self.set_texture_for_raster(img_path)
+                return
+
+            img = Image.open(img_path).convert("RGBA")
+            img_data = np.array(img, dtype='u1')
+
+            base_h, base_w, _ = self.texture_layers[0].shape
+            h, w, _ = img_data.shape
+            if (h, w) != (base_h, base_w):
+                raise ValueError(
+                    f"Texture size mismatch: expected {(base_w, base_h)}, got {(w, h)}"
+                )
+
+            self.texture_layers.append(img_data)
+            self.last_size = len(self.texture_layers)
+            self.last_texture_array = img_data
+
+            if self.texture is not None:
+                self.texture.release()
+
+            array_data = np.stack(self.texture_layers, axis=0)  # (layers, h, w, 4)
+            self.texture = self.ctx.texture_array(
+                size=(w, h, self.last_size),
+                components=4,
+                data=array_data.tobytes()
+            )
+            self.texture.use(location=0)
+            self.texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
+            self.texture.repeat_x = False
+            self.texture.repeat_y = False
+            self.compute_shader["inTex"].value = 0
+            
 
     def generate_cubemap_skybox(self, radius: int, texture_path, left_uvs, right_uvs, top_uvs, bottom_uvs, forward_uvs, backward_uvs):
         #uv inputs go like: op left uv, top right uv, bottom left uv, bottom right uv
@@ -379,7 +429,7 @@ class Renderer3D:
             self.skybox_texture.repeat_y = False
             self.compute_shader["skyTex"].value = 1 
 
-            self.vertices_faces_list.append([verts.tolist(),faces,uvs,uv_faces, True])
+            self.vertices_faces_list.append([verts.tolist(),faces,uvs,uv_faces, True, 0])
         
 
     def normalize(self, v):
@@ -430,7 +480,7 @@ class Renderer3D:
         uv_faces = []
 
         if matrix is None or len(matrix) == 0 or len(matrix[0]) == 0:
-            return [[], faces, uv, uv_faces]
+            return [[], faces, uv, uv_faces, False, 0]
 
         h = len(matrix)
         w = len(matrix[0])
@@ -460,7 +510,7 @@ class Renderer3D:
                         uv_faces.append((3, 2, 1))
 
         verts = [p for row in matrix for p in row]
-        return [verts, faces, uv, uv_faces, False]
+        return [verts, faces, uv, uv_faces, False, 0]
 
 
     def project_3d_to_2d(self, matrix, fov, camera_pos, camera_facing):
@@ -751,9 +801,9 @@ class Renderer3D:
                 if mat is None:
                     continue
 
-                vertices, faces, uv, uv_faces, is_skybox = mat
+                vertices, faces, uv, uv_faces, is_skybox, texture_index = mat
                 if self.using_obj_filetype_format:
-                    unprojected_verticies, same_faces, same_uv, same_uv_faces, is_skybox1 = self.vertices_faces_list[matI]
+                    unprojected_verticies, same_faces, same_uv, same_uv_faces, is_skybox1, texture_index1 = self.vertices_faces_list[matI]
 
                 for faceI in range(len(faces)):
                     face = faces[faceI]
@@ -792,7 +842,7 @@ class Renderer3D:
                                 (pp0[2], pp1[2], pp2[2]),
                                 (pp0, pp1, pp2),
                                 clipped_uvs[0], clipped_uvs[1], clipped_uvs[2],
-                                light_m, is_skybox
+                                light_m, is_skybox, texture_index
                             ))
                     else:
                         p0 = vertices[face[0]]
@@ -803,7 +853,7 @@ class Renderer3D:
                                 (p0[2], p1[2], p2[2]),
                                 (p0, p1, p2),
                                 uv0, uv1, uv2,
-                                1, is_skybox
+                                1, is_skybox, texture_index
                             ))
 
             n = len(all_tris)
@@ -811,7 +861,7 @@ class Renderer3D:
                 return
 
             data = np.zeros(n, dtype=tri_dtype)
-            for i, (depths, tri, uv1, uv2, uv3, light_m, is_skybox) in enumerate(all_tris):
+            for i, (depths, tri, uv1, uv2, uv3, light_m, is_skybox, tri_tex_index) in enumerate(all_tris):
                 p0, p1, p2 = tri
                 data[i]['pos'] = ((p0[0], p0[1]), (p1[0], p1[1]), (p2[0], p2[1]))
                 data[i]['depths'] = depths
@@ -820,10 +870,12 @@ class Renderer3D:
                         data[i]['uv'] = ((-1.0, -1.0), (-1.0, -1.0), (-1.0, -1.0))
                         data[i]['light_mult'] = 1
                         data[i]["is_skybox"] = 0
+                        data[i]["texture_index"] = tri_tex_index
                     else:
                         data[i]['uv'] = (uv1, uv2, uv3)
                         data[i]['light_mult'] = light_m
                         data[i]["is_skybox"] = 0
+                        data[i]["texture_index"] = tri_tex_index
                 else:
                     if None in (uv1, uv2, uv3) or self.skybox_texture == None:
                         data[i]['uv'] = ((-1.0, -1.0), (-1.0, -1.0), (-1.0, -1.0))
@@ -1157,7 +1209,7 @@ class Renderer3D:
                                 tuple(self.camera.rotation),
                                 self.vertices_faces_list[i][4]
                             )
-                        self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1], self.vertices_faces_list[i][2], self.vertices_faces_list[i][3], self.vertices_faces_list[i][4]])
+                        self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1], self.vertices_faces_list[i][2], self.vertices_faces_list[i][3], self.vertices_faces_list[i][4], self.vertices_faces_list[i][5]])
                     #if not self.is_mesh:
                     self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
 
@@ -1230,7 +1282,7 @@ class Renderer3D:
                         tuple(self.camera.rotation),
                         self.vertices_faces_list[i][4]
                     )
-                self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1], self.vertices_faces_list[i][2], self.vertices_faces_list[i][3], self.vertices_faces_list[i][4]])
+                self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1], self.vertices_faces_list[i][2], self.vertices_faces_list[i][3], self.vertices_faces_list[i][4], self.vertices_faces_list[i][5]])
             #if not self.is_mesh:
             self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
 
