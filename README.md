@@ -83,22 +83,15 @@ Every item below links to its explanation section.
         <br/>
         <i>Wireframe OBJ rendering</i>
       </td>
-      <td align="center">
-        <img src="media/DualObjFull.png" alt="Tree Solid Render" width="400"/>
-        <br/>
-        <b>Tree Solid Render</b>
-        <br/>
-        <i>Filled rendering from same scene</i>
-      </td>
-    </tr>
-    <tr>
-      <td align="center">
+        <td align="center">
         <img src="media/ColorTree.png" alt="Colored Tree" width="400"/>
         <br/>
         <b>Colored Tree</b>
         <br/>
         <i>Per-shape color update showcase</i>
       </td>
+    </tr>
+    <tr>
       <td align="center">
         <img src="media/daetest.gif" alt="DAE Loader Demo" width="400"/>
         <br/>
@@ -106,7 +99,6 @@ Every item below links to its explanation section.
         <br/>
         <i>Loading .dae files with full geometry</i>
       </td>
-    </tr>
       <td align="center">
         <img src="media/PhysicsDemo.gif" alt="Physics Demo" width="400"/>
         <br/>
