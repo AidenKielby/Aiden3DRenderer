@@ -28,6 +28,7 @@ Every item below links to its explanation section.
 - [**Per-Shape Colors**](#per-shape-colors) - Custom colors for polygon/raster workflows.
 - [**Simple Physics Engine**](#simple-physics-engine) - Basic forces and collisions for spheres/planes/camera.
 - [**OBJ Loading**](#obj-loading) - Load and render `.obj` files with triangulation and UV parsing.
+- [**COLLADA/DAE Loading**](#collada-dae-loading) - Load and render `.dae` files with full geometry support.
 - [**Rasterization Paths**](#rasterization-paths) - CPU fill path + GPU compute-shader raster path.
 - [**Three Render Modes**](#three-render-modes) - `MESH`, `POLYGON_FILL`, and `RASTERIZE`.
 - [**Raster Debug Views**](#raster-debug-views) - Depth and heat-map diagnostics.
@@ -98,6 +99,14 @@ Every item below links to its explanation section.
         <br/>
         <i>Per-shape color update showcase</i>
       </td>
+      <td align="center">
+        <img src="media/daetest.gif" alt="DAE Loader Demo" width="400"/>
+        <br/>
+        <b>COLLADA/DAE Support</b>
+        <br/>
+        <i>Loading .dae files with full geometry</i>
+      </td>
+    </tr>
       <td align="center">
         <img src="media/PhysicsDemo.gif" alt="Physics Demo" width="400"/>
         <br/>
@@ -251,6 +260,16 @@ OBJ workflow supports standard model loading with extra quality-of-life features
 - Per-object offset and `texture_index` support
 
 For full usage, see [OBJ Loading](#obj-loading).
+
+### COLLADA DAE Loading
+Load COLLADA (.dae) files with full geometry support:
+- Parse vertices, faces, and UV coordinates from XML
+- Support for triangles, polylist, and polygon primitives
+- Automatic n-gon triangulation
+- Same API as OBJ loader with offset and scale parameters
+- Fast XML parsing with lxml
+
+For full usage, see [COLLADA DAE Loading](#collada-dae-loading).
 
 ### Rasterization Paths
 Two fill/raster workflows are available:
@@ -498,6 +517,42 @@ if __name__ == "__main__":
 - N-gon faces are triangulated automatically.
 - UV coordinates (`vt`) are parsed for texture mapping in raster mode.
 - Cross-layout skybox helper: `generate_cross_type_cubemap_skybox(radius, img_path)`.
+
+## COLLADA DAE Loading
+
+Load COLLADA (.dae) files with full geometry and UV support.
+
+### Example
+
+```python
+from aiden3drenderer import Renderer3D, dae_loader, renderer_type
+
+
+def main():
+    renderer = Renderer3D(width=800, height=800, title="DAE Loader")
+
+    renderer.camera.position = [0, 0, -5]
+    renderer.render_type = renderer_type.MESH
+    renderer.using_obj_filetype_format = True
+
+    dae = dae_loader.get_dae("./assets/model.dae", texture_index=0)
+    renderer.vertices_faces_list.append(dae)
+
+    renderer.run()
+
+
+if __name__ == "__main__":
+    main()
+```
+
+### Notes
+
+- `dae_loader.get_dae(path, texture_index, offset=(x, y, z), scale=1)` works just like OBJ loader.
+- Supports triangles, polylist, and polygon primitives.
+- Automatically triangulates n-gons.
+- Parses UV coordinates for texture mapping.
+- Works with all three render modes (MESH, POLYGON_FILL, RASTERIZE).
+- Uses lxml for fast XML parsing.
 
 ## Video Renderer
 

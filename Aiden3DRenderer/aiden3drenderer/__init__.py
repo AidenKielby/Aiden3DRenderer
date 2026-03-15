@@ -15,6 +15,7 @@ from .renderer import Renderer3D, register_shape, renderer_type
 from .camera import Camera
 from . import physics
 from . import obj_loader
+from . import dae_loader
 from .video_renderer import VideoRenderer3D, VideoRendererObject
 from .button import Button
 
@@ -25,6 +26,7 @@ __all__ = [
     "Camera",
     "physics",
     "obj_loader",
+    "dae_loader",
     "VideoRenderer3D",
     "VideoRendererObject",
     "Button",

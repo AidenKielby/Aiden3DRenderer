@@ -14,6 +14,7 @@ class Camera:
         self.speed = 0.1
         self.base_speed = 0.1
         self.speed_mult = 2
+        self.fov = 90
         
         self.mouse_start_pos = None
         self.mouse_start_rotation = None
