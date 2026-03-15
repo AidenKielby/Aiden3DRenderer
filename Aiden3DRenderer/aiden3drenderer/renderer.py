@@ -1183,7 +1183,7 @@ class Renderer3D:
                         p1 = vertices[face[1]]
                         p2 = vertices[face[2]]
                         if not is_skybox:
-                            if self.is_backface_projected(pp0, pp1, pp2):
+                            if self.is_backface_projected(p0, p1, p2):
                                 continue
                         if not (p0[2] < 0 or p1[2] < 0 or p2[2] < 0):
                             all_tris.append((
@@ -1326,7 +1326,7 @@ class Renderer3D:
                         p1 = vertices[face[1]]
                         p2 = vertices[face[2]]
                         if not is_skybox:
-                            if self.is_backface_projected(pp0, pp1, pp2):
+                            if self.is_backface_projected(p0, p1, p2):
                                 continue
                         depth = (p0[2] + p1[2] + p2[2]) / 3.0
                         if not (p0[2] < 0 or p1[2] < 0 or p2[2] < 0):
@@ -1398,7 +1398,7 @@ class Renderer3D:
                         p1 = vertices[face[1]]
                         p2 = vertices[face[2]]
                         if not is_skybox:
-                            if self.is_backface_projected(pp0, pp1, pp2):
+                            if self.is_backface_projected(p0, p1, p2):
                                 continue
                         if not (p0[2] < 0 or p1[2] < 0 or p2[2] < 0):
                             pygame.draw.line(self.screen, (0, 0, 0), (p0[0],p0[1]), (p1[0],p1[1]), 2)
