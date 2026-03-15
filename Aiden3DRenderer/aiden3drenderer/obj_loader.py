@@ -1,17 +1,18 @@
 import numpy as np
 
-def get_obj(file_path: str, texture_index: int, offset=(0,0,0)):
+def get_obj(file_path: str, texture_index: int, offset=(0,0,0), scale=1):
     vertices = []
     tex_coords = []
     vertex_faces = []
     texture_faces = []
+    scale = max(scale, 0)
 
     with open(file_path, "r") as f:
         for line in f:
             if line.startswith("v "):
                 parts = line.strip().split()
                 v = [float(parts[1]), float(parts[2]), float(parts[3])]
-                v = (np.array(v) + offset).tolist()
+                v = (np.array(v)+ offset).tolist()
                 vertices.append(v)
 
             elif line.startswith("vt "):
@@ -41,5 +42,9 @@ def get_obj(file_path: str, texture_index: int, offset=(0,0,0)):
                         vertex_faces.append((v_idx[0], v_idx[i], v_idx[i+1]))
                         if vt_idx:
                             texture_faces.append((vt_idx[0], vt_idx[i], vt_idx[i+1]))
+    arr = np.array(vertices, dtype=float)
+    pivot = (arr.min(axis=0) + arr.max(axis=0)) * 0.5
+
+    vertices = ((arr - pivot) * scale + pivot + offset).tolist()
 
     return [vertices, vertex_faces, tex_coords, texture_faces, False, texture_index]

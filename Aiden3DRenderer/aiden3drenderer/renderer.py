@@ -305,9 +305,6 @@ class Renderer3D:
         else:
             self.compute_shader = None
         
-        self.output_tex = self.ctx.texture((width, height), 4, dtype='f4')
-
-        self._output_clear_rgba = np.ones((height, width, 4), dtype=np.float32)
         
         self.tri_buffer = self.ctx.buffer(reserve=tri_dtype.itemsize * 10000)
 
@@ -318,6 +315,19 @@ class Renderer3D:
         self.skybox_texture = None
 
         self.render_distance = 20
+        self.rasterization_size = (width//2, height//2)
+        self.rasterization_size = (width // 2, height // 2)
+
+        rw = self.rasterization_size[0] + (16 - self.rasterization_size[0] % 16) % 16
+        rh = self.rasterization_size[1] + (16 - self.rasterization_size[1] % 16) % 16
+        self.rasterization_size = (rw, rh)
+
+        self.output_tex = self.ctx.texture((rw, rh), 4, dtype='f4')
+        self._output_clear_rgba = np.ones((rh, rw, 4), dtype=np.float32)
+        self.upscaled_surface = pygame.Surface((self.width, self.height)).convert()
+
+        self.raster_half_w = self.rasterization_size[0] // 2
+        self.raster_half_h = self.rasterization_size[1] // 2
 
         def exit_button():
             pygame.quit()
@@ -513,6 +523,20 @@ class Renderer3D:
         self.show_pause_menu = False
         self.show_settings_menu = False
 
+    def set_rasterization_size(self, size: tuple[int, int]):
+        width, height = size
+        width = width + (16 - width % 16) % 16
+        height = height + (16 - height % 16) % 16
+        self.rasterization_size = (width, height)
+
+        self.raster_half_w = self.rasterization_size[0] // 2
+        self.raster_half_h = self.rasterization_size[1] // 2
+
+        if sys.platform != "darwin":
+            if self.output_tex is not None:
+                self.output_tex.release()
+            self.output_tex = self.ctx.texture((width, height), 4, dtype='f4')
+            self._output_clear_rgba = np.ones((height, width, 4), dtype=np.float32)
 
     def toggle_depth_view(self, b: bool):
         self.depth_view_enabled = b
@@ -848,8 +872,13 @@ class Renderer3D:
                 dd_x = (x3 * f) / -z3
                 dd_y = (y3 * f) / -z3
 
-                px = dd_x * self.half_w + self.half_w
-                py = dd_y * self.half_h + self.half_h
+                if self.render_type == renderer_type.RASTERIZE:
+                    half_w, half_h = self.raster_half_w, self.raster_half_h
+                else:
+                    half_w, half_h = self.half_w, self.half_h
+
+                px = dd_x * half_w + half_w
+                py = dd_y * half_h + half_h
 
                 """margin = 5000
                 if px < -margin or px > self.width + margin or py < -margin or py > self.height + margin:
@@ -914,8 +943,13 @@ class Renderer3D:
             dd_x = (x3 * f) / -z3
             dd_y = (y3 * f) / -z3
 
-            px = dd_x * self.half_w + self.half_w
-            py = dd_y * self.half_h + self.half_h
+            if self.render_type == renderer_type.RASTERIZE:
+                half_w, half_h = self.raster_half_w, self.raster_half_h
+            else:
+                half_w, half_h = self.half_w, self.half_h
+
+            px = dd_x * half_w + half_w
+            py = dd_y * half_h + half_h
 
             """margin = 1000
             if px < -margin or px > self.width + margin or py < -margin or py > self.height + margin:
@@ -1121,26 +1155,36 @@ class Renderer3D:
                             def proj(v):
                                 f = 1.0 / math.tan(fov_rad / 2)
                                 return (
-                                    (v[0] * f / -v[2]) * self.half_w + self.half_w,
-                                    (v[1] * f / -v[2]) * self.half_h + self.half_h,
+                                    (v[0] * f / -v[2]) * self.raster_half_w + self.raster_half_w,
+                                    (v[1] * f / -v[2]) * self.raster_half_h + self.raster_half_h,
                                     v[2]
                                 )
                             pp0, pp1, pp2 = proj(clipped_verts[0]), proj(clipped_verts[1]), proj(clipped_verts[2])
-                            if self.is_backface_projected(pp0, pp1, pp2):
-                                continue
-                            if not (abs(pp0[2]) > self.render_distance or abs(pp1[2]) > self.render_distance or abs(pp2[2]) > self.render_distance):
+                            if not is_skybox:
+                                if self.is_backface_projected(pp0, pp1, pp2):
+                                    continue
+                            if is_skybox:
                                 all_tris.append((
                                     (pp0[2], pp1[2], pp2[2]),
                                     (pp0, pp1, pp2),
                                     clipped_uvs[0], clipped_uvs[1], clipped_uvs[2],
                                     light_m, is_skybox, texture_index
                                 ))
+                            else:
+                                if not (abs(pp0[2]) > self.render_distance or abs(pp1[2]) > self.render_distance or abs(pp2[2]) > self.render_distance):
+                                    all_tris.append((
+                                        (pp0[2], pp1[2], pp2[2]),
+                                        (pp0, pp1, pp2),
+                                        clipped_uvs[0], clipped_uvs[1], clipped_uvs[2],
+                                        light_m, is_skybox, texture_index
+                                    ))
                     else:
                         p0 = vertices[face[0]]
                         p1 = vertices[face[1]]
                         p2 = vertices[face[2]]
-                        if self.is_backface_projected(p0, p1, p2):
-                            continue
+                        if not is_skybox:
+                            if self.is_backface_projected(pp0, pp1, pp2):
+                                continue
                         if not (p0[2] < 0 or p1[2] < 0 or p2[2] < 0):
                             all_tris.append((
                                 (p0[2], p1[2], p2[2]),
@@ -1188,14 +1232,18 @@ class Renderer3D:
             self.compute_shader['tri_count'].value = n
 
             self.output_tex.write(self._output_clear_rgba.tobytes())
-            self.compute_shader.run((self.width + 15) // 16, (self.height + 15) // 16)
-            
+            self.compute_shader.run((self.rasterization_size[0] + 15) // 16, (self.rasterization_size[1] + 15) // 16)
+    
+            rw, rh = self.rasterization_size
             raw_data = self.output_tex.read()
-            img_array = np.frombuffer(raw_data, dtype='f4').reshape((self.height, self.width, 4))
-            img_uint8 = (img_array * 255).astype('uint8')
+            img_array = np.frombuffer(raw_data, dtype='f4').reshape((rh, rw, 4))
+            img_uint8 = (np.clip(img_array, 0.0, 1.0) * 255).astype('uint8')
+            img_uint8[..., 3] = 255
+            img_uint8 = img_uint8[..., [2, 1, 0, 3]] 
 
-            image_surface = pygame.image.frombuffer(img_uint8.tobytes(), (self.width, self.height), 'RGBA')
-            self.screen.blit(image_surface, (0, 0))
+            image_surface = pygame.image.frombuffer(img_uint8.tobytes(), (self.rasterization_size[0], self.rasterization_size[1]), 'RGBA')
+            pygame.transform.scale(image_surface, (self.width, self.height), self.upscaled_surface)
+            self.screen.blit(self.upscaled_surface, (0, 0))
 
 
         elif self.render_type == renderer_type.POLYGON_FILL:
@@ -1255,21 +1303,31 @@ class Renderer3D:
                                     v[2]
                                 )
                             pp0, pp1, pp2 = proj(clipped_verts[0]), proj(clipped_verts[1]), proj(clipped_verts[2])
-                            if self.is_backface_projected(pp0, pp1, pp2):
-                                continue
-                            if not (abs(pp0[2]) > self.render_distance or abs(pp1[2]) > self.render_distance or abs(pp2[2]) > self.render_distance):
+                            if not is_skybox:
+                                if self.is_backface_projected(pp0, pp1, pp2):
+                                    continue
+                            if is_skybox:
                                 depth = (pp0[2] + pp1[2] + pp2[2]) / 3.0
                                 all_tris.append((
                                     depth,
                                     (pp0, pp1, pp2),
                                     col
                                 ))
+                            else:
+                                if not (abs(pp0[2]) > self.render_distance or abs(pp1[2]) > self.render_distance or abs(pp2[2]) > self.render_distance):
+                                    depth = (pp0[2] + pp1[2] + pp2[2]) / 3.0
+                                    all_tris.append((
+                                        depth,
+                                        (pp0, pp1, pp2),
+                                        col
+                                    ))
                     else:
                         p0 = vertices[face[0]]
                         p1 = vertices[face[1]]
                         p2 = vertices[face[2]]
-                        if self.is_backface_projected(p0, p1, p2):
-                            continue
+                        if not is_skybox:
+                            if self.is_backface_projected(pp0, pp1, pp2):
+                                continue
                         depth = (p0[2] + p1[2] + p2[2]) / 3.0
                         if not (p0[2] < 0 or p1[2] < 0 or p2[2] < 0):
                             all_tris.append((
@@ -1323,9 +1381,15 @@ class Renderer3D:
                                     v[2]
                                 )
                             pp0, pp1, pp2 = proj(clipped_verts[0]), proj(clipped_verts[1]), proj(clipped_verts[2])
-                            if self.is_backface_projected(pp0, pp1, pp2):
-                                continue
-                            if not (abs(pp0[2]) > self.render_distance or abs(pp1[2]) > self.render_distance or abs(pp2[2]) > self.render_distance):
+                            if not is_skybox:
+                                if self.is_backface_projected(pp0, pp1, pp2):
+                                    continue
+                            if not is_skybox:
+                                if not (abs(pp0[2]) > self.render_distance or abs(pp1[2]) > self.render_distance or abs(pp2[2]) > self.render_distance):
+                                    pygame.draw.line(self.screen, (0, 0, 0), (pp0[0],pp0[1]), (pp1[0],pp1[1]), 2)
+                                    pygame.draw.line(self.screen, (0, 0, 0), (pp1[0],pp1[1]), (pp2[0],pp2[1]), 2)
+                                    pygame.draw.line(self.screen, (0, 0, 0), (pp2[0],pp2[1]), (pp0[0],pp0[1]), 2)
+                            else:
                                 pygame.draw.line(self.screen, (0, 0, 0), (pp0[0],pp0[1]), (pp1[0],pp1[1]), 2)
                                 pygame.draw.line(self.screen, (0, 0, 0), (pp1[0],pp1[1]), (pp2[0],pp2[1]), 2)
                                 pygame.draw.line(self.screen, (0, 0, 0), (pp2[0],pp2[1]), (pp0[0],pp0[1]), 2)
@@ -1333,8 +1397,9 @@ class Renderer3D:
                         p0 = vertices[face[0]]
                         p1 = vertices[face[1]]
                         p2 = vertices[face[2]]
-                        if self.is_backface_projected(p0, p1, p2):
-                            continue
+                        if not is_skybox:
+                            if self.is_backface_projected(pp0, pp1, pp2):
+                                continue
                         if not (p0[2] < 0 or p1[2] < 0 or p2[2] < 0):
                             pygame.draw.line(self.screen, (0, 0, 0), (p0[0],p0[1]), (p1[0],p1[1]), 2)
                             pygame.draw.line(self.screen, (0, 0, 0), (p1[0],p1[1]), (p2[0],p2[1]), 2)
