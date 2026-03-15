@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="aiden3drenderer",
-    version="1.7.2",
+    version="1.7.3",
     author="Aiden",
     author_email="headstone.yt@gmail.com",
     description="A lightweight 3D wireframe renderer built from scratch using Pygame",
@@ -39,6 +39,7 @@ setup(
         "opencv-python>=4.13.0.90",
         "moderngl>=5.12.0",
         "pillow>=12.1.0",
+        "lxml>=6.0.2"
     ],
     package_data={"aiden3drenderer": ["fonts/*.ttf"]},
     extras_require={
