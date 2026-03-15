@@ -799,7 +799,7 @@ class Renderer3D:
                 y3 = x2 * sin_z + y2 * cos_z
                 z3 = z2
 
-                if z3 <= -1 or abs(z3) < 1e-6:
+                if z3 <= 0.1:
                     row.append(None)
                     continue
 
@@ -1467,29 +1467,24 @@ class Renderer3D:
                         )
                         self.projections_list.append(projected)
 
-                if self.render_type == renderer_type.POLYGON_FILL:
-                    self.render_wireframe(self.projections_list)
-                elif self.render_type == renderer_type.MESH:
-                    for proj in self.projections_list:
-                        self.render_wireframe(proj)
-                elif self.render_type == renderer_type.RASTERIZE:
-                    self.projected_vertices_faces_list = [
-                        self.shape_to_verticies_faces(proj)
-                        for proj in self.projections_list
-                    ]
-                    self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
-            else:
-                for i in range(len(self.vertices_faces_list)):
-                    projected = self.project_3d_to_2d_flat(
-                            self.vertices_faces_list[i][0],
-                            fov_rad,
-                            tuple(self.camera.position),
-                            tuple(self.camera.rotation),
-                            self.vertices_faces_list[i][4]
-                        )
-                    self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1], self.vertices_faces_list[i][2], self.vertices_faces_list[i][3], self.vertices_faces_list[i][4], self.vertices_faces_list[i][5]])
-                #if not self.is_mesh:
+                self.projected_vertices_faces_list = [
+                    self.shape_to_verticies_faces(proj)
+                    for proj in self.projections_list
+                ]
                 self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
+            else:
+                if self.render_type == renderer_type.RASTERIZE:
+                    for i in range(len(self.vertices_faces_list)):
+                        projected = self.project_3d_to_2d_flat(
+                                self.vertices_faces_list[i][0],
+                                fov_rad,
+                                tuple(self.camera.position),
+                                tuple(self.camera.rotation),
+                                self.vertices_faces_list[i][4]
+                            )
+                        self.projected_vertices_faces_list.append([projected, self.vertices_faces_list[i][1], self.vertices_faces_list[i][2], self.vertices_faces_list[i][3], self.vertices_faces_list[i][4], self.vertices_faces_list[i][5]])
+                    #if not self.is_mesh:
+                    self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
 
             self.grid_coords_list = []
             self.triangle_color_list_1 = []
