@@ -62,10 +62,6 @@ layout(std430, binding = 0) buffer triangle_data {
     Triangle tris[];
 };
 
-layout(std430, binding = 1) buffer DepthBuffer {
-    uint pixel_depths[]; // Store as fixed-point integers for atomicMin
-};
-
 layout(rgba32f, binding = 0) writeonly uniform image2D destTex;
 
 uniform sampler2DArray inTex;
@@ -137,9 +133,8 @@ float depth_in_tri(vec2 p0, vec2 p1, vec2 p2, vec2 point, vec3 depths) {
 void main() {
     ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy);
     ivec2 dims = imageSize(destTex);
-    if (pixel_coords.x >= dims.x || pixel_coords.y >= dims.y) return;
+    bool in_b = pixel_coords.x < dims.x && pixel_coords.y < dims.y;
 
-    uint pixel_index = pixel_coords.y * dims.x + pixel_coords.x;
     vec2 p_center = vec2(pixel_coords) + 0.5;
 
     float best_depth = 1e38;
@@ -155,52 +150,61 @@ void main() {
         }
         
         barrier(); // Wait for all threads to finish loading
-
         uint limit = min(256, num_tris - i);
-        for (uint j = 0; j < limit; j++) {
-            if (is_point_in_tri(local_tris[j].pos1, local_tris[j].pos2, local_tris[j].pos3, p_center)) {
-                vec3 ds = vec3(local_tris[j].d1, local_tris[j].d2, local_tris[j].d3);
-                float d = depth_in_tri(local_tris[j].pos1, local_tris[j].pos2, local_tris[j].pos3, p_center, ds);
-                
-                if (d < best_depth) {
-                    best_depth = d;
-                    if (depthView){
-                        float c = -pow(2, (-abs(d) * 0.75))+1;
-                        best_color = vec3(c, c, c);
-                    }
-                    else if (heatMap){
-                        float t = clamp(d * 0.35, 0.0, 1.0);
-                        best_color = mix(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), t);
-                    }
-                    else{
-                        if (local_tris[j].uv1.x < 0.0 || local_tris[j].uv2.x < 0.0 || local_tris[j].uv3.x < 0.0) {
+        if (in_b) {
+            for (uint j = 0; j < limit; j++) {
+                float minx = min(min(local_tris[j].pos1.x, local_tris[j].pos2.x), local_tris[j].pos3.x);
+                float maxx = max(max(local_tris[j].pos1.x, local_tris[j].pos2.x), local_tris[j].pos3.x);
+                float miny = min(min(local_tris[j].pos1.y, local_tris[j].pos2.y), local_tris[j].pos3.y);
+                float maxy = max(max(local_tris[j].pos1.y, local_tris[j].pos2.y), local_tris[j].pos3.y);
+                if (p_center.x < minx || p_center.x > maxx ||
+                    p_center.y < miny || p_center.y > maxy) {
+                    continue;
+                }
+                if (is_point_in_tri(local_tris[j].pos1, local_tris[j].pos2, local_tris[j].pos3, p_center)) {
+                    vec3 ds = vec3(local_tris[j].d1, local_tris[j].d2, local_tris[j].d3);
+                    float d = depth_in_tri(local_tris[j].pos1, local_tris[j].pos2, local_tris[j].pos3, p_center, ds);
+                    
+                    if (d < best_depth) {
+                        best_depth = d;
+                        if (depthView){
                             float c = -pow(2, (-abs(d) * 0.75))+1;
                             best_color = vec3(c, c, c);
                         }
+                        else if (heatMap){
+                            float t = clamp(d * 0.35, 0.0, 1.0);
+                            best_color = mix(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), t);
+                        }
                         else{
-                            vec3 ws = vec3(1.0/local_tris[j].d1, 1.0/local_tris[j].d2, 1.0/local_tris[j].d3);
-
-                            vec3 us = vec3(local_tris[j].uv1.x * ws.x, local_tris[j].uv2.x * ws.y, local_tris[j].uv3.x * ws.z);
-                            vec3 vs = vec3(local_tris[j].uv1.y * ws.x, local_tris[j].uv2.y * ws.y, local_tris[j].uv3.y * ws.z);
-
-                            float u_over_w = depth_in_tri(local_tris[j].pos1, local_tris[j].pos2, local_tris[j].pos3, p_center, us);
-                            float v_over_w = depth_in_tri(local_tris[j].pos1, local_tris[j].pos2, local_tris[j].pos3, p_center, vs);
-                            float one_over_w = depth_in_tri(local_tris[j].pos1, local_tris[j].pos2, local_tris[j].pos3, p_center, ws);
-
-                            vec2 uv = vec2(u_over_w / one_over_w, 1.0 - (v_over_w / one_over_w));
-
-                            vec4 color = vec4(1.0);
-
-                            if (local_tris[j].is_skybox == 1){
-                                color = texture(skyTex, uv);
+                            if (local_tris[j].uv1.x < 0.0 || local_tris[j].uv2.x < 0.0 || local_tris[j].uv3.x < 0.0) {
+                                float c = -pow(2, (-abs(d) * 0.75))+1;
+                                best_color = vec3(c, c, c);
                             }
                             else{
-                                color = texture(inTex, vec3(uv, local_tris[j].texture_index));
-                            }
+                                vec3 ws = vec3(1.0/local_tris[j].d1, 1.0/local_tris[j].d2, 1.0/local_tris[j].d3);
 
-                            best_color = vec3(color.x * local_tris[j].light_mult, color.y * local_tris[j].light_mult, color.z * local_tris[j].light_mult);
+                                vec3 us = vec3(local_tris[j].uv1.x * ws.x, local_tris[j].uv2.x * ws.y, local_tris[j].uv3.x * ws.z);
+                                vec3 vs = vec3(local_tris[j].uv1.y * ws.x, local_tris[j].uv2.y * ws.y, local_tris[j].uv3.y * ws.z);
+
+                                float u_over_w = depth_in_tri(local_tris[j].pos1, local_tris[j].pos2, local_tris[j].pos3, p_center, us);
+                                float v_over_w = depth_in_tri(local_tris[j].pos1, local_tris[j].pos2, local_tris[j].pos3, p_center, vs);
+                                float one_over_w = depth_in_tri(local_tris[j].pos1, local_tris[j].pos2, local_tris[j].pos3, p_center, ws);
+
+                                vec2 uv = vec2(u_over_w / one_over_w, 1.0 - (v_over_w / one_over_w));
+
+                                vec4 color = vec4(1.0);
+
+                                if (local_tris[j].is_skybox == 1){
+                                    color = texture(skyTex, uv);
+                                }
+                                else{
+                                    color = texture(inTex, vec3(uv, local_tris[j].texture_index));
+                                }
+
+                                best_color = vec3(color.x * local_tris[j].light_mult, color.y * local_tris[j].light_mult, color.z * local_tris[j].light_mult);
+                            }
+                            
                         }
-                        
                     }
                 }
             }
@@ -209,15 +213,10 @@ void main() {
         barrier(); // Wait before loading the next chunk
     }
 
-    uint z_int = uint(best_depth * 1000000.0);
-    uint old_z = atomicMin(pixel_depths[pixel_index], z_int);
-
-    if (z_int <= old_z) {
+    if (in_b){
         imageStore(destTex, pixel_coords, vec4(best_color, 1.0));
     }
-    else{
-        imageStore(destTex, pixel_coords, vec4(1.0, 1.0, 1.0, 1.0));
-    }
+
 }
 
 """
@@ -262,6 +261,9 @@ class Renderer3D:
         self.render_type = renderer_type.MESH
         self.depth_view_enabled = False
         self.heat_map_enabled = False
+        self.show_debug_fps = False
+        self.backface_culling_enabled = True
+        self.front_face_ccw = False
         self.triangle_base_color_1= (150, 0, 150)
         self.triangle_base_color_2 = (50, 0, 50)
         self.triangle_color_list_1= []
@@ -307,9 +309,6 @@ class Renderer3D:
 
         self._output_clear_rgba = np.ones((height, width, 4), dtype=np.float32)
         
-        self.depth_init_data = np.full(width * height, np.iinfo(np.uint32).max, dtype='u4')
-        self.depth_buffer = self.ctx.buffer(self.depth_init_data.tobytes())
-        
         self.tri_buffer = self.ctx.buffer(reserve=tri_dtype.itemsize * 10000)
 
         self.texture_path = None
@@ -317,6 +316,8 @@ class Renderer3D:
 
         self.texture = None
         self.skybox_texture = None
+
+        self.render_distance = 20
 
         def exit_button():
             pygame.quit()
@@ -363,6 +364,9 @@ class Renderer3D:
 
         def toggle_default_shapes_setting():
             self.using_obj_filetype_format = not self.using_obj_filetype_format
+
+        def toggle_debug_fps_setting():
+            self.show_debug_fps = not self.show_debug_fps
 
         menu_w = width * 2 / 3
         menu_x = width / 6
@@ -455,6 +459,12 @@ class Renderer3D:
             text="Default Shapes: ON", text_color=button_colors["text"]
         )
 
+        self.debug_fps_button = Button(
+            self.screen, (settings_col_w, btn_h), (settings_x_left, y0 + (btn_h + gap) * 5), toggle_debug_fps_setting,
+            border_color=button_colors["border"], color=button_colors["settings"],
+            text="Debug FPS: OFF", text_color=button_colors["text"]
+        )
+
         self.settings_back_button = Button(
             self.screen, (menu_w, btn_h), (menu_x, height - btn_h - height * 1 / 14), back_to_pause_menu,
             border_color=button_colors["border"], color=button_colors["settings"],
@@ -490,6 +500,7 @@ class Renderer3D:
             self.light_down_button,
             self.light_up_button,
             self.default_shapes_button,
+            self.debug_fps_button,
             self.settings_back_button,
         ]
 
@@ -497,6 +508,7 @@ class Renderer3D:
 
         self.pause_title_font = pygame.font.Font(None, int(height * 0.08))
         self.pause_info_font = pygame.font.Font(None, int(height * 0.04))
+        self.debug_fps_font = pygame.font.Font(None, int(height * 0.03))
 
         self.show_pause_menu = False
         self.show_settings_menu = False
@@ -538,6 +550,7 @@ class Renderer3D:
         self.depth_button.text = f"Depth View: {'ON' if self.depth_view_enabled else 'OFF'}"
         self.heat_button.text = f"Heat Map: {'ON' if self.heat_map_enabled else 'OFF'}"
         self.default_shapes_button.text = f"OBJ Mode: {'ON' if self.using_obj_filetype_format else 'OFF'}"
+        self.debug_fps_button.text = f"Debug FPS: {'ON' if self.show_debug_fps else 'OFF'}"
 
         info_line_1 = self.pause_info_font.render(f"FOV: {self.camera.fov:.0f}", True, (240, 240, 240))
         info_line_2 = self.pause_info_font.render(f"Lighting Strictness: {self.lighting_strictness:.2f}", True, (240, 240, 240))
@@ -546,6 +559,30 @@ class Renderer3D:
 
         for button in self.settings_buttons:
             button.draw()
+
+    def draw_debug_fps(self):
+        if not self.show_debug_fps:
+            return
+
+        fps = self.clock.get_fps()
+        fps_text = self.debug_fps_font.render(f"FPS: {fps:.1f}", True, (20, 20, 20))
+        bg_rect = fps_text.get_rect(topleft=(10, 10)).inflate(12, 8)
+        pygame.draw.rect(self.screen, (255, 255, 255), bg_rect)
+        pygame.draw.rect(self.screen, (20, 20, 20), bg_rect, 1)
+        self.screen.blit(fps_text, fps_text.get_rect(center=bg_rect.center))
+
+    def signed_area_2d(self, p0, p1, p2):
+        return ((p1[0] - p0[0]) * (p2[1] - p0[1])) - ((p1[1] - p0[1]) * (p2[0] - p0[0]))
+
+    def is_backface_projected(self, p0, p1, p2):
+        if not self.backface_culling_enabled:
+            return False
+        area = self.signed_area_2d(p0, p1, p2)
+        if abs(area) < 1e-8:
+            return True
+        if self.front_face_ccw:
+            return area <= 0
+        return area >= 0
 
     def set_render_type(self, type: renderer_type):
         self.render_type = type
@@ -609,9 +646,12 @@ class Renderer3D:
             self.texture.repeat_x = False
             self.texture.repeat_y = False
             self.compute_shader["inTex"].value = 0
-            
+        
+    def smooth_fadeout(self, dist):
+        return 0.5*(1+math.cos((1/self.render_distance)*math.pi*min(abs(dist), self.render_distance)))
 
     def generate_cubemap_skybox(self, radius: int, texture_path, left_uvs, right_uvs, top_uvs, bottom_uvs, forward_uvs, backward_uvs):
+        self.render_distance = radius
         #uv inputs go like: op left uv, top right uv, bottom left uv, bottom right uv
         if sys.platform != "darwin":
             verts = np.array([(-1,-1,-1), (1,-1,-1), (-1,1,-1), (-1,-1,1), (1,1,-1), (-1,1,1), (1,-1,1), (1,1,1)])
@@ -935,6 +975,8 @@ class Renderer3D:
                                 p1 = mat[xIdx][yIdx + 1]
                                 p2 = mat[xIdx + 1][yIdx]
                                 if p1 is not None and p2 is not None:
+                                    if self.is_backface_projected(point, p1, p2):
+                                        continue
                                     #pygame.draw.polygon(screen, (150, 0, 150), [point, p1, p2], 0)
                                     d1 = (point[2] + p1[2] + p2[2]) / 3 if len(point) > 2 else 0
                                     tris.append((d1, (point, p1, p2), col1))
@@ -943,6 +985,8 @@ class Renderer3D:
                                 p1 = mat[xIdx][yIdx - 1]
                                 p2 = mat[xIdx - 1][yIdx]
                                 if p1 is not None and p2 is not None:
+                                    if self.is_backface_projected(point, p1, p2):
+                                        continue
                                     #pygame.draw.polygon(screen, (50, 0, 50), [point, p1, p2], 0)
                                     d1 = (point[2] + p1[2] + p2[2]) / 3 if len(point) > 2 else 0
                                     tris.append((d1, (point, p1, p2), col2))
@@ -1036,7 +1080,6 @@ class Renderer3D:
     def render_shape_from_obj_format(self, matrix, texture_p):
         #print(matrix[0][0])
         if self.render_type == renderer_type.RASTERIZE:
-            self.depth_buffer.write(self.depth_init_data.tobytes())
 
             all_tris = []
             fov_rad = math.radians(self.camera.fov)
@@ -1083,16 +1126,21 @@ class Renderer3D:
                                     v[2]
                                 )
                             pp0, pp1, pp2 = proj(clipped_verts[0]), proj(clipped_verts[1]), proj(clipped_verts[2])
-                            all_tris.append((
-                                (pp0[2], pp1[2], pp2[2]),
-                                (pp0, pp1, pp2),
-                                clipped_uvs[0], clipped_uvs[1], clipped_uvs[2],
-                                light_m, is_skybox, texture_index
-                            ))
+                            if self.is_backface_projected(pp0, pp1, pp2):
+                                continue
+                            if not (abs(pp0[2]) > self.render_distance or abs(pp1[2]) > self.render_distance or abs(pp2[2]) > self.render_distance):
+                                all_tris.append((
+                                    (pp0[2], pp1[2], pp2[2]),
+                                    (pp0, pp1, pp2),
+                                    clipped_uvs[0], clipped_uvs[1], clipped_uvs[2],
+                                    light_m, is_skybox, texture_index
+                                ))
                     else:
                         p0 = vertices[face[0]]
                         p1 = vertices[face[1]]
                         p2 = vertices[face[2]]
+                        if self.is_backface_projected(p0, p1, p2):
+                            continue
                         if not (p0[2] < 0 or p1[2] < 0 or p2[2] < 0):
                             all_tris.append((
                                 (p0[2], p1[2], p2[2]),
@@ -1135,7 +1183,6 @@ class Renderer3D:
             self.tri_buffer.write(data.tobytes())
             self.tri_buffer.bind_to_storage_buffer(0, offset=0, size=data.nbytes)
 
-            self.depth_buffer.bind_to_storage_buffer(1)
             self.output_tex.bind_to_image(0, read=False, write=True)
 
             self.compute_shader['tri_count'].value = n
@@ -1146,7 +1193,7 @@ class Renderer3D:
             raw_data = self.output_tex.read()
             img_array = np.frombuffer(raw_data, dtype='f4').reshape((self.height, self.width, 4))
             img_uint8 = (img_array * 255).astype('uint8')
-            
+
             image_surface = pygame.image.frombuffer(img_uint8.tobytes(), (self.width, self.height), 'RGBA')
             self.screen.blit(image_surface, (0, 0))
 
@@ -1208,16 +1255,21 @@ class Renderer3D:
                                     v[2]
                                 )
                             pp0, pp1, pp2 = proj(clipped_verts[0]), proj(clipped_verts[1]), proj(clipped_verts[2])
-                            depth = (pp0[2] + pp1[2] + pp2[2]) / 3.0
-                            all_tris.append((
-                                depth,
-                                (pp0, pp1, pp2),
-                                col
-                            ))
+                            if self.is_backface_projected(pp0, pp1, pp2):
+                                continue
+                            if not (abs(pp0[2]) > self.render_distance or abs(pp1[2]) > self.render_distance or abs(pp2[2]) > self.render_distance):
+                                depth = (pp0[2] + pp1[2] + pp2[2]) / 3.0
+                                all_tris.append((
+                                    depth,
+                                    (pp0, pp1, pp2),
+                                    col
+                                ))
                     else:
                         p0 = vertices[face[0]]
                         p1 = vertices[face[1]]
                         p2 = vertices[face[2]]
+                        if self.is_backface_projected(p0, p1, p2):
+                            continue
                         depth = (p0[2] + p1[2] + p2[2]) / 3.0
                         if not (p0[2] < 0 or p1[2] < 0 or p2[2] < 0):
                             all_tris.append((
@@ -1271,13 +1323,18 @@ class Renderer3D:
                                     v[2]
                                 )
                             pp0, pp1, pp2 = proj(clipped_verts[0]), proj(clipped_verts[1]), proj(clipped_verts[2])
-                            pygame.draw.line(self.screen, (0, 0, 0), (pp0[0],pp0[1]), (pp1[0],pp1[1]), 2)
-                            pygame.draw.line(self.screen, (0, 0, 0), (pp1[0],pp1[1]), (pp2[0],pp2[1]), 2)
-                            pygame.draw.line(self.screen, (0, 0, 0), (pp2[0],pp2[1]), (pp0[0],pp0[1]), 2)
+                            if self.is_backface_projected(pp0, pp1, pp2):
+                                continue
+                            if not (abs(pp0[2]) > self.render_distance or abs(pp1[2]) > self.render_distance or abs(pp2[2]) > self.render_distance):
+                                pygame.draw.line(self.screen, (0, 0, 0), (pp0[0],pp0[1]), (pp1[0],pp1[1]), 2)
+                                pygame.draw.line(self.screen, (0, 0, 0), (pp1[0],pp1[1]), (pp2[0],pp2[1]), 2)
+                                pygame.draw.line(self.screen, (0, 0, 0), (pp2[0],pp2[1]), (pp0[0],pp0[1]), 2)
                     else:
                         p0 = vertices[face[0]]
                         p1 = vertices[face[1]]
                         p2 = vertices[face[2]]
+                        if self.is_backface_projected(p0, p1, p2):
+                            continue
                         if not (p0[2] < 0 or p1[2] < 0 or p2[2] < 0):
                             pygame.draw.line(self.screen, (0, 0, 0), (p0[0],p0[1]), (p1[0],p1[1]), 2)
                             pygame.draw.line(self.screen, (0, 0, 0), (p1[0],p1[1]), (p2[0],p2[1]), 2)
@@ -1504,6 +1561,8 @@ class Renderer3D:
                 else:
                     self.draw_pause_menu()
 
+            self.draw_debug_fps()
+
             pygame.display.update()
         
         pygame.quit()
@@ -1596,6 +1655,8 @@ class Renderer3D:
                 self.draw_settings_menu()
             else:
                 self.draw_pause_menu()
+
+        self.draw_debug_fps()
         
         pygame.display.update()
         
