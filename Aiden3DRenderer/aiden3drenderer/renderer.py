@@ -237,6 +237,8 @@ class Renderer3D:
     
     def __init__(self, width=1000, height=1000, title="Aiden 3D Renderer", load_default_shapes: bool = True):
         pygame.init()
+        width = width + (16 - width % 16) % 16
+        height = height + (16 - height % 16) % 16
         self.width = width
         self.height = height
         self.half_w = width // 2
@@ -799,7 +801,7 @@ class Renderer3D:
                 y3 = x2 * sin_z + y2 * cos_z
                 z3 = z2
 
-                if z3 <= 0.1:
+                if z3 <= 0.001:
                     row.append(None)
                     continue
 
@@ -865,7 +867,7 @@ class Renderer3D:
             y3 = x2 * sin_z + y2 * cos_z
             z3 = z2
 
-            if z3 <= 0.1:
+            if z3 <= 0.001:
                 projected.append(None)
                 continue
 
@@ -1070,7 +1072,7 @@ class Renderer3D:
 
                         cam0, cam1, cam2 = self.cam(up0, is_skybox), self.cam(up1, is_skybox), self.cam(up2, is_skybox)
 
-                        clipped = self.clip_triangle_near([cam0, cam1, cam2], [uv0, uv1, uv2], near=0.1)
+                        clipped = self.clip_triangle_near([cam0, cam1, cam2], [uv0, uv1, uv2], near=0.001)
 
                         for clipped_verts, clipped_uvs in clipped:
                             def proj(v):
