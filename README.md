@@ -28,7 +28,6 @@ Every item below links to its explanation section.
 - [**Per-Shape Colors**](#per-shape-colors) - Custom colors for polygon/raster workflows.
 - [**Simple Physics Engine**](#simple-physics-engine) - Basic forces and collisions for spheres/planes/camera.
 - [**OBJ Loading**](#obj-loading) - Load and render `.obj` files with triangulation and UV parsing.
-- [**DAE Loading**] - Load and render `.dae` files (thanks to Darian!).
 - [**COLLADA/DAE Loading**](#collada-dae-loading) - Load and render `.dae` files with full geometry support.
 - [**Rasterization Paths**](#rasterization-paths) - CPU fill path + GPU compute-shader raster path.
 - [**Three Render Modes**](#three-render-modes) - `MESH`, `POLYGON_FILL`, and `RASTERIZE`.
