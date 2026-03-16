@@ -969,6 +969,7 @@ class Renderer3D:
         if self.render_type == renderer_type.MESH:
             if matrix is None:
                 return
+            matrix = matrix[0]
             for xIdx in range(len(matrix)):
                 xList = matrix[xIdx]
                 for yIdx in range(len(xList)):
@@ -985,7 +986,8 @@ class Renderer3D:
                             continue
 
                         for p in points:
-                            pygame.draw.line(self.screen, (0, 0, 0), point, p, 2)
+                            if None not in (point, p):
+                                pygame.draw.line(self.screen, (0, 0, 0), (point[0], point[1]), (p[0], p[1]), 2)
         elif self.render_type == renderer_type.POLYGON_FILL:
             all_tris = []
             for matI in range(len(matrix)):
