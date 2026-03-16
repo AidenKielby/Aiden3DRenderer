@@ -1591,11 +1591,14 @@ class Renderer3D:
                         )
                         self.projections_list.append(projected)
 
-                self.projected_vertices_faces_list = [
-                    self.shape_to_verticies_faces(proj)
-                    for proj in self.projections_list
-                ]
-                self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
+                if self.render_type == renderer_type.RASTERIZE:
+                    self.projected_vertices_faces_list = [
+                        self.shape_to_verticies_faces(proj)
+                        for proj in self.projections_list
+                    ]
+                    self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
+                else:
+                    self.render_wireframe(self.projections_list)
             else:
                 for i in range(len(self.vertices_faces_list)):
                     projected = self.project_3d_to_2d_flat(
