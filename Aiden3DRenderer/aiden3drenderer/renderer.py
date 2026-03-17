@@ -969,7 +969,6 @@ class Renderer3D:
         if self.render_type == renderer_type.MESH:
             if matrix is None:
                 return
-            matrix = matrix[0]
             for xIdx in range(len(matrix)):
                 xList = matrix[xIdx]
                 for yIdx in range(len(xList)):
@@ -986,8 +985,7 @@ class Renderer3D:
                             continue
 
                         for p in points:
-                            if None not in (point, p):
-                                pygame.draw.line(self.screen, (0, 0, 0), (point[0], point[1]), (p[0], p[1]), 2)
+                            pygame.draw.line(self.screen, (0, 0, 0), point, p, 2)
         elif self.render_type == renderer_type.POLYGON_FILL:
             all_tris = []
             for matI in range(len(matrix)):
@@ -1593,14 +1591,17 @@ class Renderer3D:
                         )
                         self.projections_list.append(projected)
 
-                if self.render_type == renderer_type.RASTERIZE:
+                if self.render_type == renderer_type.POLYGON_FILL:
+                    self.render_wireframe(self.projections_list)
+                elif self.render_type == renderer_type.MESH:
+                    for proj in self.projections_list:
+                        self.render_wireframe(proj)
+                elif self.render_type == renderer_type.RASTERIZE:
                     self.projected_vertices_faces_list = [
                         self.shape_to_verticies_faces(proj)
                         for proj in self.projections_list
                     ]
                     self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
-                else:
-                    self.render_wireframe(self.projections_list)
             else:
                 for i in range(len(self.vertices_faces_list)):
                     projected = self.project_3d_to_2d_flat(
