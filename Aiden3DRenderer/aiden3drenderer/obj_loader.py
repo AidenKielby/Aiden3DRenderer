@@ -1,4 +1,5 @@
 import numpy as np
+from .renderer import object_type
 
 def get_obj(file_path: str, texture_index: int, offset=(0,0,0), scale=1):
     vertices = []

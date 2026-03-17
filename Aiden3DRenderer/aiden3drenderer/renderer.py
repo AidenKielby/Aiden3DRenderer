@@ -32,6 +32,11 @@ class renderer_type(Enum):
     POLYGON_FILL = "polygon_fill"
     MESH = "mesh"
 
+class object_type(Enum):
+    OBJ = "obj"
+    SKYBOX = "skybox"
+    BILLBOARD = "billboard"
+
 compute_shader_for_rasterization = """
 #version 430
 
@@ -196,9 +201,11 @@ void main() {
 
                                 if (local_tris[j].is_skybox == 1){
                                     color = texture(skyTex, uv);
+                                    if (color.w < 0.01) continue;
                                 }
                                 else{
                                     color = texture(inTex, vec3(uv, local_tris[j].texture_index));
+                                    if (color.w < 0.01) continue;
                                 }
 
                                 best_color = vec3(color.x * local_tris[j].light_mult, color.y * local_tris[j].light_mult, color.z * local_tris[j].light_mult);
@@ -648,9 +655,9 @@ class Renderer3D:
             base_h, base_w, _ = self.texture_layers[0].shape
             h, w, _ = img_data.shape
             if (h, w) != (base_h, base_w):
-                raise ValueError(
-                    f"Texture size mismatch: expected {(base_w, base_h)}, got {(w, h)}"
-                )
+                img = img.resize((base_h, base_w))
+                img_data = np.array(img, dtype='u1')
+                h, w, _ = img_data.shape
 
             self.texture_layers.append(img_data)
             self.last_size = len(self.texture_layers)
@@ -719,7 +726,18 @@ class Renderer3D:
             self.skybox_texture.repeat_y = False
             self.compute_shader["skyTex"].value = 1 
 
-            self.vertices_faces_list.append([verts.tolist(),faces,uvs,uv_faces, True, 0])
+            self.vertices_faces_list.append([verts.tolist(),faces,uvs,uv_faces, object_type.SKYBOX, 0])
+
+    def generate_sprite_bilboard(self, texture_path, pos=(0,0,0), size=1):
+        if sys.platform != "darwin":
+            verts = [pos] 
+            faces = [(0, 0, 0)] 
+
+            uvs = [(1,1), (1,0), (0,1), (0,0)]
+            uv_faces = [(0,2,1), (3,1,2)]
+
+            self.vertices_faces_list.append([verts, faces, uvs, uv_faces, object_type.BILLBOARD, len(self.texture_layers), size])
+            self.add_texture_for_raster(texture_path)
     
     def generate_cross_type_cubemap_skybox(self, radius: int, img_path):
         img_w, img_h = Image.open(img_path).size
@@ -895,8 +913,10 @@ class Renderer3D:
 
         return projected
     
-    def project_3d_to_2d_flat(self, inList, fov, camera_pos, camera_facing, is_skybox):
+    def project_3d_to_2d_flat(self, inList, fov, camera_pos, camera_facing, obj_type):
         projected = []
+        is_skybox = obj_type == object_type.SKYBOX
+        is_billboard = obj_type == object_type.BILLBOARD
         #print(len(self.grid_coords_list))
         if inList is None:
             return None
@@ -924,17 +944,22 @@ class Renderer3D:
                 y -= camera_pos[1]
                 z -= camera_pos[2]
 
-            x1 = x * cos_y + z * sin_y
-            y1 = y
-            z1 = -x * sin_y + z * cos_y
+            if not is_billboard:
+                x1 = x * cos_y + z * sin_y
+                y1 = y
+                z1 = -x * sin_y + z * cos_y
 
-            x2 = x1
-            y2 = y1 * cos_x - z1 * sin_x
-            z2 = y1 * sin_x + z1 * cos_x
+                x2 = x1
+                y2 = y1 * cos_x - z1 * sin_x
+                z2 = y1 * sin_x + z1 * cos_x
 
-            x3 = x2 * cos_z - y2 * sin_z
-            y3 = x2 * sin_z + y2 * cos_z
-            z3 = z2
+                x3 = x2 * cos_z - y2 * sin_z
+                y3 = x2 * sin_z + y2 * cos_z
+                z3 = z2
+            else:
+                x3 = x
+                y3 = y
+                z3 = z
 
             if z3 <= 0.001:
                 projected.append(None)
@@ -1115,6 +1140,13 @@ class Renderer3D:
         #print(matrix[0][0])
         if self.render_type == renderer_type.RASTERIZE:
 
+            cy, sy = math.cos(self.camera.rotation[1]), math.sin(self.camera.rotation[1])
+            cx, sx = math.cos(self.camera.rotation[0]), math.sin(self.camera.rotation[0])
+            cz, sz = math.cos(self.camera.rotation[2]), math.sin(self.camera.rotation[2])
+
+            cam_right = ( cy*cz - sy*sx*sz,  -cx*sz,  sy*cz + cy*sx*sz)
+            cam_up    = ( cy*sz + sy*sx*cz,   cx*cz,  sy*sz - cy*sx*cz)
+
             all_tris = []
             fov_rad = math.radians(self.camera.fov)
 
@@ -1123,14 +1155,68 @@ class Renderer3D:
                 if mat is None:
                     continue
 
-                vertices, faces, uv, uv_faces, is_skybox, texture_index = mat
-                if self.using_obj_filetype_format:
-                    unprojected_verticies, same_faces, same_uv, same_uv_faces, is_skybox1, texture_index1 = self.vertices_faces_list[matI]
+                vertices, faces, uv, uv_faces, obj_type, texture_index = mat
+                is_skybox = obj_type == object_type.SKYBOX
+                is_billboard = obj_type == object_type.BILLBOARD
+
+                if is_billboard:
+                    size = self.vertices_faces_list[matI][6]
+                    cx_pos = self.vertices_faces_list[matI][0][0]
+
+                    hs = size * 0.5
+                    tr = (cx_pos[0] + cam_right[0]*hs + cam_up[0]*hs,
+                        cx_pos[1] + cam_right[1]*hs + cam_up[1]*hs,
+                        cx_pos[2] + cam_right[2]*hs + cam_up[2]*hs)
+                    br = (cx_pos[0] + cam_right[0]*hs - cam_up[0]*hs,
+                        cx_pos[1] + cam_right[1]*hs - cam_up[1]*hs,
+                        cx_pos[2] + cam_right[2]*hs - cam_up[2]*hs)
+                    tl = (cx_pos[0] - cam_right[0]*hs + cam_up[0]*hs,
+                        cx_pos[1] - cam_right[1]*hs + cam_up[1]*hs,
+                        cx_pos[2] - cam_right[2]*hs + cam_up[2]*hs)
+                    bl = (cx_pos[0] - cam_right[0]*hs - cam_up[0]*hs,
+                        cx_pos[1] - cam_right[1]*hs - cam_up[1]*hs,
+                        cx_pos[2] - cam_right[2]*hs - cam_up[2]*hs)
+
+                    def proj_pt(p):
+                        c = self.cam(p, False)
+                        if c[2] <= 0.001:
+                            return None
+                        f = 1.0 / math.tan(fov_rad / 2)
+                        return (
+                            (c[0] * f / -c[2]) * self.raster_half_w + self.raster_half_w,
+                            (c[1] * f / -c[2]) * self.raster_half_h + self.raster_half_h,
+                            c[2]
+                        )
+
+                    pp = [proj_pt(v) for v in [tr, br, tl, bl]]
+                    if None in pp:
+                        continue 
+                    bill_uvs = [(1,1), (1,0), (0,1), (0,0)]
+                    bill_tris = [
+                        (0, 2, 1), 
+                        (3, 1, 2), 
+                    ]
+                    bill_uv_faces = [(0, 2, 1), (3, 1, 2)]
+
+                    for fi, (f0, f1, f2) in enumerate(bill_tris):
+                        p0, p1, p2 = pp[f0], pp[f1], pp[f2]
+                        uvi = bill_uv_faces[fi]
+                        u0, u1, u2 = bill_uvs[uvi[0]], bill_uvs[uvi[1]], bill_uvs[uvi[2]]
+                        all_tris.append((
+                            (p0[2], p1[2], p2[2]),
+                            (p0, p1, p2),
+                            u0, u1, u2,
+                            1.0, False, texture_index
+                        ))
+                    continue
+
+                if self.using_obj_filetype_format and not is_billboard:
+                    unprojected_verticies, *_ = self.vertices_faces_list[matI]
 
                 for faceI in range(len(faces)):
                     face = faces[faceI]
 
-                    if self.using_obj_filetype_format:
+                    if self.using_obj_filetype_format and not is_billboard:
                         up0 = unprojected_verticies[face[0]]
                         up1 = unprojected_verticies[face[1]]
                         up2 = unprojected_verticies[face[2]]
@@ -1255,7 +1341,8 @@ class Renderer3D:
                 if mat is None:
                     continue
 
-                vertices, faces, uv, uv_faces, is_skybox, texture_index = mat
+                vertices, faces, uv, uv_faces, obj_type, texture_index = mat
+                is_skybox = obj_type == object_type.SKYBOX
                 if self.using_obj_filetype_format:
                     unprojected_verticies, *_ = self.vertices_faces_list[matI]
 
@@ -1346,7 +1433,8 @@ class Renderer3D:
                 if mat is None:
                     continue
 
-                vertices, faces, uv, uv_faces, is_skybox, texture_index = mat
+                vertices, faces, uv, uv_faces, obj_type, texture_index = mat
+                is_skybox = obj_type == object_type.SKYBOX
                 if self.using_obj_filetype_format:
                     unprojected_verticies, *_ = self.vertices_faces_list[matI]
 
