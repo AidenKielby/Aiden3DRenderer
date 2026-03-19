@@ -13,6 +13,7 @@ from PIL import Image
 
 from .camera import Camera
 from .button import Button
+from .entity import Entity
 
 CUSTOM_SHAPES = {}
 
@@ -67,7 +68,7 @@ layout(std430, binding = 0) buffer triangle_data {
     Triangle tris[];
 };
 
-layout(rgba32f, binding = 0) writeonly uniform image2D destTex;
+layout(rgba32f, binding = 0) uniform image2D destTex;
 
 uniform sampler2DArray inTex;
 uniform sampler2D skyTex;
@@ -143,7 +144,7 @@ void main() {
     vec2 p_center = vec2(pixel_coords) + 0.5;
 
     float best_depth = 1e38;
-    vec3 best_color = vec3(1.0);
+    vec3 best_color = imageLoad(destTex, pixel_coords).rgb;
 
     uint num_tris = min(tri_count, uint(tris.length()));
     uint local_id = gl_LocalInvocationIndex; // 0 to 255
@@ -198,17 +199,20 @@ void main() {
                                 vec2 uv = vec2(u_over_w / one_over_w, 1.0 - (v_over_w / one_over_w));
 
                                 vec4 color = vec4(1.0);
+                                vec3 real_col = vec3(1.0);
 
                                 if (local_tris[j].is_skybox == 1){
                                     color = texture(skyTex, uv);
-                                    if (color.w < 0.01) continue;
+                                    real_col = vec3(color.x, color.y, color.z);
+                                    real_col = best_color * (1-color.w) + real_col * color.w;
                                 }
                                 else{
                                     color = texture(inTex, vec3(uv, local_tris[j].texture_index));
-                                    if (color.w < 0.01) continue;
+                                    real_col = vec3(color.x, color.y, color.z);
+                                    real_col = best_color * (1-color.w) + real_col * color.w;
                                 }
 
-                                best_color = vec3(color.x * local_tris[j].light_mult, color.y * local_tris[j].light_mult, color.z * local_tris[j].light_mult);
+                                best_color = vec3(real_col.x * local_tris[j].light_mult, real_col.y * local_tris[j].light_mult, real_col.z * local_tris[j].light_mult);
                             }
                             
                         }
@@ -292,6 +296,10 @@ class Renderer3D:
 
         self.lighting_strictness = 0.5
 
+        self.last_time = pygame.time.get_ticks()
+        self.time = self.last_time
+        self.delta_time = 0.1
+
         if load_default_shapes:
             before = set(CUSTOM_SHAPES.keys())
             try:
@@ -335,6 +343,8 @@ class Renderer3D:
 
         self.raster_half_w = self.rasterization_size[0] // 2
         self.raster_half_h = self.rasterization_size[1] // 2
+
+        self.entities: list[Entity] = []
 
         def exit_button():
             pygame.quit()
@@ -530,6 +540,9 @@ class Renderer3D:
         self.show_pause_menu = False
         self.show_settings_menu = False
 
+    def add_entity(self, entity: Entity):
+        self.entities.append(entity)
+
     def set_rasterization_size(self, size: tuple[int, int]):
         width, height = size
         width = width + (16 - width % 16) % 16
@@ -655,11 +668,18 @@ class Renderer3D:
             base_h, base_w, _ = self.texture_layers[0].shape
             h, w, _ = img_data.shape
             if (h, w) != (base_h, base_w):
-                img = img.resize((base_h, base_w))
+                img = img.resize((base_w, base_h), Image.Resampling.NEAREST)
                 img_data = np.array(img, dtype='u1')
-                h, w, _ = img_data.shape
+                # remove the line below, h and w are now wrong anyway
 
             self.texture_layers.append(img_data)
+            self.last_size = len(self.texture_layers)
+
+            if self.texture is not None:
+                self.texture.release()
+
+            array_data = np.stack(self.texture_layers, axis=0)
+            h, w = self.texture_layers[0].shape[:2]
             self.last_size = len(self.texture_layers)
             self.last_texture_array = img_data
 
@@ -677,6 +697,8 @@ class Renderer3D:
             self.texture.repeat_x = False
             self.texture.repeat_y = False
             self.compute_shader["inTex"].value = 0
+
+            return len(self.texture_layers) -1
         
     def smooth_fadeout(self, dist):
         return 0.5*(1+math.cos((1/self.render_distance)*math.pi*min(abs(dist), self.render_distance)))
@@ -1632,6 +1654,15 @@ class Renderer3D:
     def run(self):
         running = True
         while running:
+            self.time = pygame.time.get_ticks()
+            self.delta_time = (self.time-self.last_time)/1000
+            self.last_time = self.time
+            ent_indexes = []
+            for e in self.entities:
+                e.update()
+                ent_indexes.append(len(self.vertices_faces_list))
+                self.vertices_faces_list.append(e.get_entity())
+
             self.screen.fill((255, 255, 255))
             self.clock.tick(60)
             self.animation_time += 0.01
@@ -1723,19 +1754,30 @@ class Renderer3D:
             self.draw_debug_fps()
 
             pygame.display.update()
+
+            for i in ent_indexes:
+                del self.vertices_faces_list[i]
         
         pygame.quit()
 
     def loopable_run(self):
+        ent_indexes = []
+        for e in self.entities:
+            e.update()
+            ent_indexes.append(len(self.vertices_faces_list))
+            self.vertices_faces_list.append(e.get_entity())
+
         self.screen.fill((255, 255, 255))
         self.clock.tick(60)
         self.animation_time += 0.01
         # Precompute FOV radians once per frame
-        fov_rad = math.radians(100)
+        fov_rad = math.radians(self.camera.fov)
+        
         # Handle events
         for event in pygame.event.get():
             if event.type == QUIT:
                 pygame.quit()
+                sys.exit()
                 
             self.camera.handle_mouse_events(event)
             if self.show_pause_menu:
@@ -1756,7 +1798,6 @@ class Renderer3D:
         self.camera.update(keys)
         
         self.generate_shape_from_key_press(keys, self.animation_time)
-
         if not self.using_obj_filetype_format:
             for i in range(len(self.shapes)):
                 shape_name = self.shapes[i]
@@ -1803,7 +1844,7 @@ class Renderer3D:
         self.triangle_color_list_2 = []
         self.projections_list = []
         self.projected_vertices_faces_list = []
-
+        
         for button in self.pause_buttons:
             button.toggled = False
         if self.show_pause_menu:
@@ -1816,8 +1857,11 @@ class Renderer3D:
                 self.draw_pause_menu()
 
         self.draw_debug_fps()
-        
+
         pygame.display.update()
+
+        for i in ent_indexes:
+            del self.vertices_faces_list[i]
         
 
 

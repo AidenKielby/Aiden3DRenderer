@@ -13,7 +13,6 @@ def get_obj(file_path: str, texture_index: int, offset=(0,0,0), scale=1):
             if line.startswith("v "):
                 parts = line.strip().split()
                 v = [float(parts[1]), float(parts[2]), float(parts[3])]
-                v = (np.array(v)+ offset).tolist()
                 vertices.append(v)
 
             elif line.startswith("vt "):
@@ -48,4 +47,4 @@ def get_obj(file_path: str, texture_index: int, offset=(0,0,0), scale=1):
 
     vertices = ((arr - pivot) * scale + pivot + offset).tolist()
 
-    return [vertices, vertex_faces, tex_coords, texture_faces, False, texture_index]
+    return [vertices, vertex_faces, tex_coords, texture_faces, object_type.OBJ, texture_index]

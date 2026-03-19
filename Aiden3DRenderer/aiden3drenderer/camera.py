@@ -14,11 +14,12 @@ class Camera:
         self.speed = 0.1
         self.base_speed = 0.1
         self.speed_mult = 2
-        self.fov = 90
         
         self.mouse_start_pos = None
         self.mouse_start_rotation = None
         self.holding_mouse = False
+
+        self.fov = 100
         
     def handle_mouse_events(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
@@ -30,6 +31,11 @@ class Camera:
         elif event.type == pygame.MOUSEBUTTONUP:
             if event.button == 3:
                 self.holding_mouse = False
+        elif event.type == pygame.MOUSEWHEEL:
+            if self.fov < 170 and event.y<0:
+                self.fov -= event.y * 1.1
+            if self.fov > 10 and event.y>0:
+                self.fov -= event.y * 1.1
     
     def update_mouse_look(self):
         if self.holding_mouse and self.mouse_start_pos:
