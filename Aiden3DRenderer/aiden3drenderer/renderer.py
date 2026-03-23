@@ -6,11 +6,13 @@ import pygame
 from pygame import QUIT
 import sys
 import importlib
-from enum import Enum
 import numpy as np
 import moderngl
 from PIL import Image
+from enum import Enum
 
+from . import bounding_box
+from .object_type import object_type
 from .camera import Camera
 from .button import Button
 from .entity import Entity
@@ -32,11 +34,6 @@ class renderer_type(Enum):
     RASTERIZE = "rasterize"
     POLYGON_FILL = "polygon_fill"
     MESH = "mesh"
-
-class object_type(Enum):
-    OBJ = "obj"
-    SKYBOX = "skybox"
-    BILLBOARD = "billboard"
 
 compute_shader_for_rasterization = """
 #version 430
@@ -300,6 +297,8 @@ class Renderer3D:
         self.time = self.last_time
         self.delta_time = 0.1
 
+        self.bounding_boxes = []
+
         if load_default_shapes:
             before = set(CUSTOM_SHAPES.keys())
             try:
@@ -539,6 +538,11 @@ class Renderer3D:
 
         self.show_pause_menu = False
         self.show_settings_menu = False
+
+    def add_obj(self, obj, bounding_box=None):
+        self.vertices_faces_list.append(obj)
+        if bounding_box is not None:
+            self.bounding_boxes.append(bounding_box)
 
     def add_entity(self, entity: Entity):
         self.entities.append(entity)
@@ -859,7 +863,9 @@ class Renderer3D:
                         uv_faces.append((3, 2, 1))
 
         verts = [p for row in matrix for p in row]
-        return [verts, faces, uv, uv_faces, False, 0]
+        obj = [verts, faces, uv, uv_faces, False, 0]
+        self.bounding_boxes.append(bounding_box.get_bounding_box(verts))
+        return obj
 
 
     def project_3d_to_2d(self, matrix, fov, camera_pos, camera_facing):
@@ -1279,7 +1285,7 @@ class Renderer3D:
                                     light_m, is_skybox, texture_index
                                 ))
                             else:
-                                if not (abs(pp0[2]) > self.render_distance or abs(pp1[2]) > self.render_distance or abs(pp2[2]) > self.render_distance):
+                                if not (abs(pp0[2]) > self.render_distance and abs(pp1[2]) > self.render_distance and abs(pp2[2]) > self.render_distance):
                                     all_tris.append((
                                         (pp0[2], pp1[2], pp2[2]),
                                         (pp0, pp1, pp2),
@@ -1290,9 +1296,12 @@ class Renderer3D:
                         p0 = vertices[face[0]]
                         p1 = vertices[face[1]]
                         p2 = vertices[face[2]]
+                        if None in (p0, p1, p2):
+                            continue
                         if not is_skybox:
-                            if self.is_backface_projected(p0, p1, p2):
-                                continue
+                            cam_dir = self.cam((0, 0, 1), True)  # forward in cam space
+                        if np.dot(unprojected_normal, [cam_dir[0], cam_dir[1], cam_dir[2]]) > 0:
+                            continue
                         if not (p0[2] < 0 or p1[2] < 0 or p2[2] < 0):
                             all_tris.append((
                                 (p0[2], p1[2], p2[2]),
@@ -1423,7 +1432,7 @@ class Renderer3D:
                                     col
                                 ))
                             else:
-                                if not (abs(pp0[2]) > self.render_distance or abs(pp1[2]) > self.render_distance or abs(pp2[2]) > self.render_distance):
+                                if not (abs(pp0[2]) > self.render_distance and abs(pp1[2]) > self.render_distance and abs(pp2[2]) > self.render_distance):
                                     depth = (pp0[2] + pp1[2] + pp2[2]) / 3.0
                                     all_tris.append((
                                         depth,
@@ -1434,6 +1443,8 @@ class Renderer3D:
                         p0 = vertices[face[0]]
                         p1 = vertices[face[1]]
                         p2 = vertices[face[2]]
+                        if None in (p0, p1, p2):
+                            continue
                         if not is_skybox:
                             if self.is_backface_projected(p0, p1, p2):
                                 continue
@@ -1495,7 +1506,7 @@ class Renderer3D:
                                 if self.is_backface_projected(pp0, pp1, pp2):
                                     continue
                             if not is_skybox:
-                                if not (abs(pp0[2]) > self.render_distance or abs(pp1[2]) > self.render_distance or abs(pp2[2]) > self.render_distance):
+                                if not (abs(pp0[2]) > self.render_distance and abs(pp1[2]) > self.render_distance and abs(pp2[2]) > self.render_distance):
                                     pygame.draw.line(self.screen, (0, 0, 0), (pp0[0],pp0[1]), (pp1[0],pp1[1]), 2)
                                     pygame.draw.line(self.screen, (0, 0, 0), (pp1[0],pp1[1]), (pp2[0],pp2[1]), 2)
                                     pygame.draw.line(self.screen, (0, 0, 0), (pp2[0],pp2[1]), (pp0[0],pp0[1]), 2)
@@ -1507,6 +1518,8 @@ class Renderer3D:
                         p0 = vertices[face[0]]
                         p1 = vertices[face[1]]
                         p2 = vertices[face[2]]
+                        if None in (p0, p1, p2):
+                            continue
                         if not is_skybox:
                             if self.is_backface_projected(p0, p1, p2):
                                 continue
@@ -1698,29 +1711,41 @@ class Renderer3D:
                     shape_name = self.shapes[i]
                     #print(shape_name)
                     self.grid_coords_list.append(self.generate_shape(shape_name, self.animation_time))
+                if self.render_type != renderer_type.RASTERIZE:
+                    for i in range(len(self.grid_coords_list)):
+                        self.grid_coords = self.grid_coords_list[i]
+                        if self.grid_coords:
+                            projected = self.project_3d_to_2d(
+                                self.grid_coords[0],
+                                fov_rad,
+                                tuple(self.camera.position),
+                                tuple(self.camera.rotation)
+                            )
+                            self.projections_list.append(projected)
 
-                for i in range(len(self.grid_coords_list)):
-                    self.grid_coords = self.grid_coords_list[i]
-                    if self.grid_coords:
-                        projected = self.project_3d_to_2d(
-                            self.grid_coords[0],
-                            fov_rad,
-                            tuple(self.camera.position),
-                            tuple(self.camera.rotation)
-                        )
-                        self.projections_list.append(projected)
+                    if self.render_type == renderer_type.POLYGON_FILL:
+                        self.render_wireframe(self.projections_list)
+                    elif self.render_type == renderer_type.MESH:
+                        for proj in self.projections_list:
+                            self.render_wireframe(proj)
+                else:
+                    if self.grid_coords_list is not None:
+                        vfl = [
+                            self.shape_to_verticies_faces(proj[0])
+                            for proj in self.grid_coords_list
+                        ]
 
-                if self.render_type == renderer_type.POLYGON_FILL:
-                    self.render_wireframe(self.projections_list)
-                elif self.render_type == renderer_type.MESH:
-                    for proj in self.projections_list:
-                        self.render_wireframe(proj)
-                elif self.render_type == renderer_type.RASTERIZE:
-                    self.projected_vertices_faces_list = [
-                        self.shape_to_verticies_faces(proj)
-                        for proj in self.projections_list
-                    ]
-                    self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
+                        for i in range(len(vfl)):
+                            projected = self.project_3d_to_2d_flat(
+                                    vfl[i][0],
+                                    fov_rad,
+                                    tuple(self.camera.position),
+                                    tuple(self.camera.rotation),
+                                    vfl[i][4]
+                                )
+                            self.projected_vertices_faces_list.append([projected, vfl[i][1], vfl[i][2], vfl[i][3], vfl[i][4], vfl[i][5]])
+                        #if not self.is_mesh:
+                        self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
             else:
                 for i in range(len(self.vertices_faces_list)):
                     projected = self.project_3d_to_2d_flat(

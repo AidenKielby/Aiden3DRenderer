@@ -1,6 +1,6 @@
 from lxml import etree
 import numpy as np
-from .renderer import object_type
+from .object_type import object_type
 
 def get_dae(file_path, texture_index, offset=(0,0,0), scale=1):
     tree = etree.parse(file_path)

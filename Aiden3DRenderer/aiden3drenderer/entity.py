@@ -1,31 +1,125 @@
 import numpy as np
 import math
 
+GRAVITY_SCRIPT = """
+import numpy as np
+
+# Configuration
+GRAVITY = -1.5 
+TERMINAL_VELOCITY = -10.0
+ELASTICITY = 0.0 
+
+def get_extents(bbox):
+    arr = np.array(bbox[0], dtype=float)
+    return arr.min(axis=0), arr.max(axis=0)
+
+if entity.gravity:
+    # 1. Apply Gravity to velocity
+    new_y_vel = entity.velocity[1] + GRAVITY * entity.delta_time
+    entity.velocity = (
+        entity.velocity[0],
+        max(new_y_vel, TERMINAL_VELOCITY), 
+        entity.velocity[2]
+    )
+
+    # 2. Resolve Collisions (Position Resolution)
+    # This prevents 'sinking' by snapping the entity to the surface
+    collisions = entity.check_for_collison()
+    if collisions:
+        for col_idx in collisions:
+            other_bbox = entity.renderer.bounding_boxes[col_idx]
+            min_self, max_self = get_extents(entity.bounding_box)
+            min_other, max_other = get_extents(other_bbox)
+
+            # Calculate overlap depth
+            ox = min(max_self[0], max_other[0]) - max(min_self[0], min_other[0])
+            oy = min(max_self[1], max_other[1]) - max(min_self[1], min_other[1])
+            oz = min(max_self[2], max_other[2]) - max(min_self[2], min_other[2])
+
+            # If the shallowest overlap is Vertical (Y), resolve the floor/ceiling hit
+            if oy < ox and oy < oz:
+                half_height = (max_self[1] - min_self[1]) / 2.0
+                
+                if entity.velocity[1] < 0: # Falling Down
+                    # Snap to top of object
+                    entity.position = [entity.position[0], max_other[1] + half_height, entity.position[2]]
+                    entity.velocity = (entity.velocity[0], -entity.velocity[1] * ELASTICITY, entity.velocity[2])
+                
+                elif entity.velocity[1] > 0: # Moving Up
+                    # Snap to bottom of object
+                    entity.position = [entity.position[0], min_other[1] - half_height, entity.position[2]]
+                    entity.velocity = (entity.velocity[0], 0, entity.velocity[2])
+"""
+
 class Entity:
-    def __init__(self, model, renderer, start_velocity=(0,0,0), starting_rotation=(0,0,0)):
+    def __init__(self, model, renderer, start_velocity:list[float]=[0,0,0], starting_rotation:list[float]=[0,0,0], bounding_box = None):
         self.model = model
         self.scripts: list[str] = []
         self.velocity = start_velocity
         self.rotation = starting_rotation
         self.renderer = renderer
-        self.position = (0,0,0)
+        self.position = [0,0,0]
         self.variables = {"entity": self, "renderer": self.renderer}
         self.gravity = False
         self.delta_time = 0.1
-        self.last_rotation = (0,0,0)
+        self.last_rotation =[0,0,0]
+        self.bounding_box = bounding_box
     
     def add_script(self, script: str):
         self.scripts.append(script)
 
+    def check_for_collison(self, bounding_boxes=None):
+        if bounding_boxes is None:
+            bounding_boxes = self.renderer.bounding_boxes
+
+        def get_extents(bbox):
+            arr = np.array(bbox[0])
+            return arr.min(axis=0), arr.max(axis=0)
+
+        collisions = []
+
+        min_b, max_b = get_extents(self.bounding_box)
+
+        for i, other in enumerate(bounding_boxes):
+            if other is self.bounding_box:
+                continue
+
+            min_a, max_a = get_extents(other)
+
+            if (max_a[0] < min_b[0] or max_b[0] < min_a[0] or
+                max_a[1] < min_b[1] or max_b[1] < min_a[1] or
+                max_a[2] < min_b[2] or max_b[2] < min_a[2]):
+                continue
+
+            collisions.append(i)
+
+        return collisions
+
+    def sync_bounding_box(self):
+        if self.bounding_box is None:
+            return
+        from . import bounding_box as bb
+        self.bounding_box = bb.get_bounding_box(self.model[0])
+
     def toggle_gravity(self):
         self.gravity = not self.gravity
         if self.gravity:
-            self.scripts.append("""""")
+            self.scripts.append(GRAVITY_SCRIPT)
         else:
-            self.scripts.remove("""""")
+            self.scripts.remove(GRAVITY_SCRIPT)
 
     def apply_velocity(self):
-        self.position = (np.array(self.position) + np.array(self.velocity)*self.delta_time).tolist()
+        self.position = [
+            self.position[0] + self.velocity[0] * self.delta_time,
+            self.position[1] + self.velocity[1] * self.delta_time,
+            self.position[2] + self.velocity[2] * self.delta_time
+        ]
+        if len(self.check_for_collison()) > 0:
+            self.position = [
+                self.position[0] - self.velocity[0] * self.delta_time,
+                self.position[1] - self.velocity[1] * self.delta_time,
+                self.position[2] - self.velocity[2] * self.delta_time
+            ]
     
     def center_vertices(self):
         pos = self.position
@@ -90,12 +184,12 @@ class Entity:
             exec(script, self.variables)
 
     def update(self):
-        #self.position = self.get_face_center(self.model[0])
         self.delta_time = self.renderer.delta_time
-        self.use_scripts()
         self.apply_velocity()
-        self.model[0] = self.center_vertices()
-        self.rotate()
+        self.model[0] = self.center_vertices() 
+        self.rotate() 
+        self.sync_bounding_box() 
+        self.use_scripts()   
         self.last_rotation = self.rotation
 
     def get_entity(self):
