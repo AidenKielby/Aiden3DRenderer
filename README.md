@@ -33,13 +33,8 @@ Every item below links to its explanation section.
 - [**Raster Debug Views**](#raster-debug-views) - Depth and heat-map diagnostics.
 - [**Texture Mapping**](#texture-mapping) - UV texture sampling in raster mode.
 - [**Multi-Texture Pipeline**](#multi-texture-pipeline) - Multiple texture layers selectable per OBJ.
- - [**Rasterization Paths**](#rasterization-paths) - CPU fill path + GPU compute-shader raster path.
- - [**Three Render Modes**](#three-render-modes) - `MESH`, `POLYGON_FILL`, and `RASTERIZE`.
- - [**Raster Debug Views**](#raster-debug-views) - Depth and heat-map diagnostics.
- - [**Texture Mapping**](#texture-mapping) - UV texture sampling in raster mode.
- - [**Multi-Texture Pipeline**](#multi-texture-pipeline) - Multiple texture layers selectable per OBJ.
- - [**Entities**](#entities) - Lightweight in-scene entities with scripted behaviour, bounding boxes, and basic collision support.
- - [**Custom Shaders**](#custom-shaders) - Helper wrapper for OpenGL compute shaders with SSBO/uniform helpers.
+- [**Entities**](#entities) - Lightweight in-scene entities with scripted behaviour, bounding boxes, and basic collision support.
+- [**Custom Shaders**](#custom-shaders) - Helper wrapper for OpenGL compute shaders with SSBO/uniform helpers.
 - [**Runtime Shape Management**](#runtime-shape-management) - Toggle built-in defaults while running.
 - [**Skybox Rendering**](#skybox-rendering) - Generate cubemap skyboxes from UVs or cross atlas layouts.
 - [**Pause + Settings UI**](#pause--settings-ui) - Tune mode, FOV, debug views, and lighting live.
