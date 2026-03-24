@@ -28,12 +28,18 @@ Every item below links to its explanation section.
 - [**Per-Shape Colors**](#per-shape-colors) - Custom colors for polygon/raster workflows.
 - [**Simple Physics Engine**](#simple-physics-engine) - Basic forces and collisions for spheres/planes/camera.
 - [**OBJ Loading**](#obj-loading) - Load and render `.obj` files with triangulation and UV parsing.
-- [**COLLADA/DAE Loading**](#collada-dae-loading) - Load and render `.dae` files with full geometry support.
 - [**Rasterization Paths**](#rasterization-paths) - CPU fill path + GPU compute-shader raster path.
 - [**Three Render Modes**](#three-render-modes) - `MESH`, `POLYGON_FILL`, and `RASTERIZE`.
 - [**Raster Debug Views**](#raster-debug-views) - Depth and heat-map diagnostics.
 - [**Texture Mapping**](#texture-mapping) - UV texture sampling in raster mode.
 - [**Multi-Texture Pipeline**](#multi-texture-pipeline) - Multiple texture layers selectable per OBJ.
+ - [**Rasterization Paths**](#rasterization-paths) - CPU fill path + GPU compute-shader raster path.
+ - [**Three Render Modes**](#three-render-modes) - `MESH`, `POLYGON_FILL`, and `RASTERIZE`.
+ - [**Raster Debug Views**](#raster-debug-views) - Depth and heat-map diagnostics.
+ - [**Texture Mapping**](#texture-mapping) - UV texture sampling in raster mode.
+ - [**Multi-Texture Pipeline**](#multi-texture-pipeline) - Multiple texture layers selectable per OBJ.
+ - [**Entities**](#entities) - Lightweight in-scene entities with scripted behaviour, bounding boxes, and basic collision support.
+ - [**Custom Shaders**](#custom-shaders) - Helper wrapper for OpenGL compute shaders with SSBO/uniform helpers.
 - [**Runtime Shape Management**](#runtime-shape-management) - Toggle built-in defaults while running.
 - [**Skybox Rendering**](#skybox-rendering) - Generate cubemap skyboxes from UVs or cross atlas layouts.
 - [**Pause + Settings UI**](#pause--settings-ui) - Tune mode, FOV, debug views, and lighting live.
@@ -83,21 +89,21 @@ Every item below links to its explanation section.
         <br/>
         <i>Wireframe OBJ rendering</i>
       </td>
-        <td align="center">
+      <td align="center">
+        <img src="media/DualObjFull.png" alt="Tree Solid Render" width="400"/>
+        <br/>
+        <b>Tree Solid Render</b>
+        <br/>
+        <i>Filled rendering from same scene</i>
+      </td>
+    </tr>
+    <tr>
+      <td align="center">
         <img src="media/ColorTree.png" alt="Colored Tree" width="400"/>
         <br/>
         <b>Colored Tree</b>
         <br/>
         <i>Per-shape color update showcase</i>
-      </td>
-    </tr>
-    <tr>
-      <td align="center">
-        <img src="media/daetest.gif" alt="DAE Loader Demo" width="400"/>
-        <br/>
-        <b>COLLADA/DAE Support</b>
-        <br/>
-        <i>Loading .dae files with full geometry</i>
       </td>
       <td align="center">
         <img src="media/PhysicsDemo.gif" alt="Physics Demo" width="400"/>
@@ -244,6 +250,31 @@ Physics module supports basic rigid-body style interactions:
 
 For a full example, see the [Physics](#physics) section below.
 
+### Entities
+
+Lightweight in-scene `Entity` objects are provided to attach models to simple runtime behaviour. Key points:
+- Entities wrap a model (vertices/faces) and expose a small API: `add_script(script_str)`, `toggle_gravity()`, `update()`, and helpers to add variables/functions accessible to scripts.
+- Scripts are plain Python strings executed with `exec()` in a sandboxed-ish `variables` namespace; the default namespace contains `entity` and `renderer`.
+- Built-in gravity script and collision helpers allow snapping, terminal velocity, and simple positional resolution using the renderer's `bounding_boxes`.
+- Entities maintain `position`, `rotation`, `velocity`, a `bounding_box`, and `delta_time` and are updated each frame via `Entity.update()`.
+
+Example:
+
+```python
+from aiden3drenderer import Renderer3D, Entity, obj_loader
+
+renderer = Renderer3D()
+obj = obj_loader.get_obj("./assets/alloy_forge_block.obj")
+entity = Entity(obj, renderer)
+entity.toggle_gravity()
+renderer.entities.append(entity)
+
+while True:
+  for e in renderer.entities:
+    e.update()
+  renderer.loopable_run()
+```
+
 ### OBJ Loading
 OBJ workflow supports standard model loading with extra quality-of-life features:
 - Load from file path
@@ -253,20 +284,32 @@ OBJ workflow supports standard model loading with extra quality-of-life features
 
 For full usage, see [OBJ Loading](#obj-loading).
 
-### COLLADA DAE Loading
-Load COLLADA (.dae) files with full geometry support:
-- Parse vertices, faces, and UV coordinates from XML
-- Support for triangles, polylist, and polygon primitives
-- Automatic n-gon triangulation
-- Same API as OBJ loader with offset and scale parameters
-- Fast XML parsing with lxml
-
-For full usage, see [COLLADA DAE Loading](#collada-dae-loading).
-
 ### Rasterization Paths
 Two fill/raster workflows are available:
 - CPU software triangle filling (`POLYGON_FILL`)
 - GPU compute-shader rasterization (`RASTERIZE`)
+
+### Custom Shaders
+
+`CustomShader` is a small helper around a ModernGL compute shader that parses buffer/uniform declarations and exposes simple helpers:
+- Create with shader source and an optional ModernGL context: `CustomShader(shader_code, context=ctx)`.
+- Allocate SSBO-style buffers via `set_buffer(name, element_count, element_size=None)` which binds storage buffers by layout binding.
+- Write to buffers/uniforms with `write_to_buffer(name, bytes)` and `write_to_uniform(name, value_or_bytes)`.
+- Read results back from buffers with `read_from_buffer(name, num_elements, element_type='vec3')` which returns a NumPy array.
+
+Example usage:
+
+```python
+from aiden3drenderer.custom_shader import CustomShader
+shader_src = """#version 430
+layout(std430, binding=0) buffer mybuf { vec4 data[]; };
+void main(){ /* ... */ }
+"""
+
+cs = CustomShader(shader_src, context=renderer.ctx)
+cs.set_buffer('mybuf', element_count=1024, element_size=16)
+# write raw bytes (numpy.tobytes()) and dispatch via cs.compute_shader
+```
 
 ### Three Render Modes
 Switch with `renderer.render_type`:
@@ -510,42 +553,6 @@ if __name__ == "__main__":
 - UV coordinates (`vt`) are parsed for texture mapping in raster mode.
 - Cross-layout skybox helper: `generate_cross_type_cubemap_skybox(radius, img_path)`.
 
-## COLLADA DAE Loading
-
-Load COLLADA (.dae) files with full geometry and UV support.
-
-### Example
-
-```python
-from aiden3drenderer import Renderer3D, dae_loader, renderer_type
-
-
-def main():
-    renderer = Renderer3D(width=800, height=800, title="DAE Loader")
-
-    renderer.camera.position = [0, 0, -5]
-    renderer.render_type = renderer_type.MESH
-    renderer.using_obj_filetype_format = True
-
-    dae = dae_loader.get_dae("./assets/model.dae", texture_index=0)
-    renderer.vertices_faces_list.append(dae)
-
-    renderer.run()
-
-
-if __name__ == "__main__":
-    main()
-```
-
-### Notes
-
-- `dae_loader.get_dae(path, texture_index, offset=(x, y, z), scale=1)` works just like OBJ loader.
-- Supports triangles, polylist, and polygon primitives.
-- Automatically triangulates n-gons.
-- Parses UV coordinates for texture mapping.
-- Works with all three render modes (MESH, POLYGON_FILL, RASTERIZE).
-- Uses lxml for fast XML parsing.
-
 ## Video Renderer
 
 A lightweight experimental renderer for creating video clips from OBJ scenes.
@@ -736,6 +743,8 @@ Useful methods and attributes:
 - `using_obj_filetype_format`
 - `vertices_faces_list`
 - `lighting_strictness`
+ - `entities`: list of `Entity` objects attached to the scene (update them each frame or let your loop call them).
+ - `CustomShader`: helper class (see `aiden3drenderer.custom_shader.CustomShader`) to run compute shaders and manage SSBO/uniform access.
 
 ### Camera
 
