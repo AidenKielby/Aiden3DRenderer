@@ -68,7 +68,120 @@ else:
 
     renderer.set_rasterization_size((500,500))
 
-    #renderer.run()
+    # Example: add a post-process compute shader (bloom for red pixels)
+    from aiden3drenderer.custom_shader import CustomShader
+
+    # ── Pass 1: horizontal blur → intermediate texture ──────────────────────────
+    horiz_cs = """
+    #version 430
+    layout(local_size_x = 16, local_size_y = 16) in;
+
+    layout(rgba32f, binding = 0) uniform image2D destTex;
+    uniform sampler2D srcTex;
+    uniform float threshold = 0.15;
+    uniform int   radius    = 16;
+
+    void main() {
+        ivec2 px   = ivec2(gl_GlobalInvocationID.xy);
+        ivec2 dims = imageSize(destTex);
+        if (px.x >= dims.x || px.y >= dims.y) return;
+
+        vec2  uv      = (vec2(px) + 0.5) / vec2(dims);
+        float sigma   = max(1.0, float(radius) * 0.4);
+        float falloff = 2.0 * sigma * sigma;
+
+        vec3  col_sum = vec3(0.0);
+        float w_sum   = 0.0;
+
+        for (int x = -radius; x <= radius; x++) {
+            float w   = exp(-float(x * x) / falloff);
+            vec2  off = vec2(float(x) / float(dims.x), 0.0);
+            vec4  s   = texture(srcTex, uv + off);
+
+            // only let pixels that are "red enough" emit bloom
+            float redness = max(0.0, s.r - max(s.g, s.b));
+            float mask    = smoothstep(threshold, threshold + 0.15, redness);
+            col_sum += s.rgb * mask * w;
+            w_sum   += w;
+        }
+
+        vec3 result = col_sum / max(1e-5, w_sum);
+        imageStore(destTex, px, vec4(result, 1.0));
+    }
+    """
+
+    # ── Pass 2: vertical blur + composite onto original ─────────────────────────
+    vert_cs = """
+    #version 430
+    layout(local_size_x = 16, local_size_y = 16) in;
+
+    layout(rgba32f, binding = 0) uniform image2D destTex;   // final output
+    uniform sampler2D srcTex;      // original scene colour
+    uniform sampler2D bloomTex;    // result of horizontal pass
+    uniform float strength = 2.0;
+    uniform int   radius   = 16;
+
+    void main() {
+        ivec2 px   = ivec2(gl_GlobalInvocationID.xy);
+        ivec2 dims = imageSize(destTex);
+        if (px.x >= dims.x || px.y >= dims.y) return;
+
+        vec2  uv      = (vec2(px) + 0.5) / vec2(dims);
+        float sigma   = max(1.0, float(radius) * 0.4);
+        float falloff = 2.0 * sigma * sigma;
+
+        vec3  bloom_sum = vec3(0.0);
+        float w_sum     = 0.0;
+
+        for (int y = -radius; y <= radius; y++) {
+            float w   = exp(-float(y * y) / falloff);
+            vec2  off = vec2(0.0, float(y) / float(dims.y));
+            bloom_sum += texture(bloomTex, uv + off).rgb * w;
+            w_sum     += w;
+        }
+
+        vec3 bloom = bloom_sum / max(1e-5, w_sum);
+
+        // yellow-tint the bloom and add onto original scene
+        vec3 tint   = vec3(1.0, 0.88, 0.3);
+        vec4 scene  = texture(srcTex, uv);
+        vec3 outc   = scene.rgb + bloom * tint * strength;
+        outc        = clamp(outc, 0.0, 1.0);
+
+        imageStore(destTex, px, vec4(outc, scene.a));
+    }
+    """
+
+    BLOOM_RADIUS = 200
+    STRENGTH     = 10.0
+    THRESHOLD    = 0.01
+
+    try:
+        cs_h = CustomShader(horiz_cs, context=renderer.ctx)
+        cs_v = CustomShader(vert_cs,  context=renderer.ctx)
+
+        # ↓ paste it all here, replacing everything that was here before
+        rw, rh = renderer.rasterization_size
+        bloom_intermediate = renderer.ctx.texture((rw, rh), 4, dtype='f4')
+        scene_snapshot     = renderer.ctx.texture((rw, rh), 4, dtype='f4')
+
+        cs_h.compute_shader['threshold'].value = THRESHOLD
+        cs_h.compute_shader['radius'].value    = BLOOM_RADIUS
+        cs_h.compute_shader['srcTex'].value    = 2
+
+        cs_v.compute_shader['strength'].value  = STRENGTH
+        cs_v.compute_shader['radius'].value    = BLOOM_RADIUS
+        cs_v.compute_shader['srcTex'].value    = 2
+        cs_v.compute_shader['bloomTex'].value  = 3
+
+        renderer.output_tex.use(location=2)
+        bloom_intermediate.use(location=3)
+
+        renderer.shaders.append({'shader': cs_h, 'inputs': [], '_dest_tex': bloom_intermediate})
+        renderer.shaders.append({'shader': cs_v, 'inputs': []})
+
+    except Exception as e:
+        print(f"Bloom shader error: {e}")
 
     renderer.run()
 

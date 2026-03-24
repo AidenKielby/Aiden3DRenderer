@@ -16,6 +16,7 @@ from .object_type import object_type
 from .camera import Camera
 from .button import Button
 from .entity import Entity
+from .custom_shader import CustomShader
 
 CUSTOM_SHAPES = {}
 
@@ -313,7 +314,8 @@ class Renderer3D:
         self.ctx = moderngl.create_context(standalone=True)
         
         if sys.platform != "darwin":
-            self.compute_shader = self.ctx.compute_shader(compute_shader_for_rasterization)
+            self.compute_shader_container = CustomShader(compute_shader_for_rasterization, self.ctx)
+            self.compute_shader = self.compute_shader_container.compute_shader
             self.compute_shader["depthView"].value = False
             self.compute_shader["heatMap"].value = False
         else:
@@ -539,6 +541,33 @@ class Renderer3D:
         self.show_pause_menu = False
         self.show_settings_menu = False
 
+        # order matters!!! first shader 0, then shader 1, etc.
+        # Use a list of dicts: { 'shader': CustomShader, 'inputs': [path,...] }
+        self.shaders = []
+
+        # If compute shader container was created above, register it as shader 0
+        if sys.platform != "darwin" and hasattr(self, 'compute_shader_container') and self.compute_shader_container:
+            cs = self.compute_shader_container
+            # Attempt to bind the renderer's tri buffer to the shader's triangle_data binding
+            tri_binding = None
+            for b in cs.buffers:
+                if b[0] == 'triangle_data':
+                    tri_binding = b[4]
+                    break
+            try:
+                if tri_binding is not None:
+                    self.tri_buffer.bind_to_storage_buffer(tri_binding)
+                    cs.buffer_objects['triangle_data'] = self.tri_buffer
+                else:
+                    # fallback: allocate triangle_data buffer sized to tri_dtype
+                    cs.set_buffer('triangle_data', 10000, element_size=tri_dtype.itemsize)
+            except Exception:
+                # ignore binding failures here; code using shaders will handle errors
+                pass
+
+            # register compute shader as first shader; inputs can be set later
+            self.shaders.append({'shader': cs, 'inputs': []})
+
     def add_obj(self, obj, bounding_box=None):
         self.vertices_faces_list.append(obj)
         if bounding_box is not None:
@@ -618,6 +647,102 @@ class Renderer3D:
         pygame.draw.rect(self.screen, (255, 255, 255), bg_rect)
         pygame.draw.rect(self.screen, (20, 20, 20), bg_rect, 1)
         self.screen.blit(fps_text, fps_text.get_rect(center=bg_rect.center))
+
+    def _attach_textures_for_shader(self, shader_entry):
+        shader = shader_entry.get('shader')
+        inputs = shader_entry.get('inputs', [])
+        created_textures = []
+        if not inputs:
+            return created_textures
+
+        imgs = []
+        for p in inputs:
+            try:
+                img = Image.open(p).convert('RGBA')
+                imgs.append(img)
+            except Exception:
+                continue
+
+        if not imgs:
+            return created_textures
+
+        w, h = imgs[0].size
+        if len(imgs) == 1:
+            img_data = np.array(imgs[0], dtype='u1')
+            tex = self.ctx.texture((w, h), 4, img_data.tobytes())
+            tex.use(location=0)
+            tex.filter = (moderngl.NEAREST, moderngl.NEAREST)
+            created_textures.append(tex)
+        else:
+            arrs = []
+            for im in imgs:
+                if im.size != (w, h):
+                    im = im.resize((w, h), Image.Resampling.NEAREST)
+                arrs.append(np.array(im, dtype='u1'))
+            array_data = np.stack(arrs, axis=0)
+            tex = self.ctx.texture_array(size=(w, h, len(arrs)), components=4, data=array_data.tobytes())
+            tex.use(location=0)
+            tex.filter = (moderngl.NEAREST, moderngl.NEAREST)
+            created_textures.append(tex)
+
+        # Map sampler uniforms in shader to texture units
+        unit = 0
+        for uni in shader.uniforms:
+            type_name, var_name, _ = uni
+            if 'sampler' in type_name:
+                tex_idx = min(unit, len(created_textures) - 1)
+                created_textures[tex_idx].use(location=unit)
+                try:
+                    shader.compute_shader[var_name].value = unit
+                except Exception:
+                    pass
+                unit += 1
+
+        shader_entry['_created_textures'] = created_textures
+        return created_textures
+
+    def run_compute_shaders(self, tri_count):
+        if sys.platform == 'darwin':
+            return
+
+        for entry in self.shaders:
+            shader = entry.get('shader')
+            if shader is None:
+                continue
+
+            # Ensure triangle_data buffer is bound
+            for b in shader.buffers:
+                name = b[0]
+                binding = b[4]
+                if name == 'triangle_data' and name not in shader.buffer_objects:
+                    try:
+                        self.tri_buffer.bind_to_storage_buffer(binding)
+                        shader.buffer_objects[name] = self.tri_buffer
+                    except Exception:
+                        pass
+
+            dest_tex = entry.get('_dest_tex', self.output_tex)
+            try:
+                dest_tex.bind_to_image(0, read=False, write=True)
+            except Exception:
+                pass
+
+            try:
+                self._attach_textures_for_shader(entry)
+            except Exception:
+                pass
+
+            try:
+                shader.compute_shader['tri_count'].value = int(tri_count)
+            except Exception:
+                pass
+
+            try:
+                groups_x = max(1, self.rasterization_size[0] // 16)
+                groups_y = max(1, self.rasterization_size[1] // 16)
+                shader.compute_shader.run(groups_x, groups_y, 1)
+            except Exception:
+                pass
 
     def signed_area_2d(self, p0, p1, p2):
         return ((p1[0] - p0[0]) * (p2[1] - p0[1])) - ((p1[1] - p0[1]) * (p2[0] - p0[0]))
@@ -1350,6 +1475,13 @@ class Renderer3D:
 
             self.output_tex.write(self._output_clear_rgba.tobytes())
             self.compute_shader.run((self.rasterization_size[0] + 15) // 16, (self.rasterization_size[1] + 15) // 16)
+
+            # Run any additional compute shaders registered in self.shaders (post-process, etc.)
+            try:
+                # n is number of triangles processed
+                self.run_compute_shaders(n)
+            except Exception:
+                pass
     
             rw, rh = self.rasterization_size
             raw_data = self.output_tex.read()
