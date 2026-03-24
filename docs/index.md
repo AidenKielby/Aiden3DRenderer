@@ -1,0 +1,15 @@
+# Aiden3DRenderer
+
+Welcome to the Aiden3DRenderer documentation — expanded reference, guides, and examples to get you rendering quickly.
+
+Sections:
+
+- [API Reference](api.md)
+- [Usage & Controls](usage.md)
+- [Tutorials & Examples](tutorials.md)
+- [Entities Guide](entities.md)
+- [Custom Shaders Guide](custom_shaders.md)
+
+Auto API summary:
+
+::: aiden3drenderer
