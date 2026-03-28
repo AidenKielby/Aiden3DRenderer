@@ -1,6 +1,7 @@
 import moderngl
 import re
 import numpy as np
+from PIL import Image
 
 glsl_type_to_bytes = {
     "float": 4,
@@ -21,6 +22,7 @@ class CustomShader:
         self.uniforms = self.get_uniforms()
 
         self.buffer_objects = {}
+        self.textures = {}
 
     def get_buffers(self):
         bufs = []
@@ -54,6 +56,45 @@ class CustomShader:
                     i += 1
             i += 1
         return bufs
+
+    def add_texture(self, texture_path: str, location: int, texture_name: str):
+        try:
+            image = Image.open(texture_path)
+        except FileNotFoundError:
+            raise FileNotFoundError("Error: Image file not found.")
+        
+        image = image.convert('RGBA')
+        image.transpose(Image.FLIP_TOP_BOTTOM)
+        image_data = image.tobytes('raw', 'RGBA')
+        size = image.size
+
+        texture = self.ctx.texture(
+            size=size,
+            components=4,
+            data=image_data
+        )
+
+        # disable wrap and use nearest sampling for exact framebuffer copies
+        try:
+            texture.repeat_x = False
+            texture.repeat_y = False
+        except Exception:
+            pass
+
+        try:
+            texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
+        except Exception:
+            pass
+
+        self.textures[texture_name] = texture
+
+        texture.use(location=location)
+        self.compute_shader[texture_name] = location
+        print(f"texture: {texture_name} using binding {location}")
+
+        return texture
+    
+    
 
     def get_uniforms(self):
         unis = []
