@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="aiden3drenderer",
-    version="1.9.6",
+    version="1.9.7",
     author="Aiden",
     author_email="headstone.yt@gmail.com",
     description="A lightweight 3D wireframe renderer built from scratch using Pygame",
@@ -48,6 +48,7 @@ setup(
     entry_points={
         "console_scripts": [
             "aiden3d-demo=aiden3drenderer.Demo.silly_skull:demo",
+            "inverted-aiden3d-demo=aiden3drenderer.Demo.silly_skull:demo_inv",
         ],
     },
     include_package_data=True,
