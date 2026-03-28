@@ -339,6 +339,7 @@ class Renderer3D:
         self.rasterization_size = (rw, rh)
 
         self.output_tex = self.ctx.texture((rw, rh), 4, dtype='f4')
+        self.alt = self.ctx.texture((rw, rh), 4, dtype='f4')
         self._output_clear_rgba = np.ones((rh, rw, 4), dtype=np.float32)
         self.upscaled_surface = pygame.Surface((self.width, self.height)).convert()
 
@@ -545,7 +546,6 @@ class Renderer3D:
         # Use a list of dicts: { 'shader': CustomShader, 'inputs': [path,...] }
         self.shaders = []
 
-        # If compute shader container was created above, register it as shader 0
         if sys.platform != "darwin" and hasattr(self, 'compute_shader_container') and self.compute_shader_container:
             cs = self.compute_shader_container
             # Attempt to bind the renderer's tri buffer to the shader's triangle_data binding
@@ -559,14 +559,11 @@ class Renderer3D:
                     self.tri_buffer.bind_to_storage_buffer(tri_binding)
                     cs.buffer_objects['triangle_data'] = self.tri_buffer
                 else:
-                    # fallback: allocate triangle_data buffer sized to tri_dtype
                     cs.set_buffer('triangle_data', 10000, element_size=tri_dtype.itemsize)
             except Exception:
-                # ignore binding failures here; code using shaders will handle errors
                 pass
 
-            # register compute shader as first shader; inputs can be set later
-            self.shaders.append({'shader': cs, 'inputs': []})
+            #self.shaders.append({'shader': cs, 'inputs': []})
 
     def add_obj(self, obj, bounding_box=None):
         self.vertices_faces_list.append(obj)
@@ -589,6 +586,11 @@ class Renderer3D:
             if self.output_tex is not None:
                 self.output_tex.release()
             self.output_tex = self.ctx.texture((width, height), 4, dtype='f4')
+
+            if self.alt is not None:
+                self.alt.release()
+            self.alt = self.ctx.texture((width, height), 4, dtype='f4')
+
             self._output_clear_rgba = np.ones((height, width, 4), dtype=np.float32)
 
     def toggle_depth_view(self, b: bool):
@@ -685,7 +687,6 @@ class Renderer3D:
             tex.filter = (moderngl.NEAREST, moderngl.NEAREST)
             created_textures.append(tex)
 
-        # Map sampler uniforms in shader to texture units
         unit = 0
         for uni in shader.uniforms:
             type_name, var_name, _ = uni
@@ -705,10 +706,39 @@ class Renderer3D:
         if sys.platform == 'darwin':
             return
 
+        input_tetxure = self.output_tex
+        output_texture = self.alt
+
+        # Ensure we start with a clean output texture for shader chaining.
+        try:
+            output_texture.write(self._output_clear_rgba.tobytes())
+        except Exception:
+            pass
+
         for entry in self.shaders:
             shader = entry.get('shader')
             if shader is None:
                 continue
+
+            # Allow shader entries to include tuple inputs for dynamic uniform updates.
+            # Format: ('uniform_name', value_or_callable)
+            # These are applied each frame before attaching textures / running the shader.
+            inputs = entry.get('inputs', [])
+            for inp in inputs:
+                if isinstance(inp, tuple) and len(inp) >= 2 and isinstance(inp[0], str):
+                    uname = inp[0]
+                    getter = inp[1]
+                    try:
+                        val = getter() if callable(getter) else getter
+                        try:
+                            shader.compute_shader[uname].value = val
+                        except Exception:
+                            try:
+                                shader.compute_shader[uname] = val
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
 
             # Ensure triangle_data buffer is bound
             for b in shader.buffers:
@@ -721,11 +751,41 @@ class Renderer3D:
                     except Exception:
                         pass
 
-            dest_tex = entry.get('_dest_tex', self.output_tex)
+            # Quick bypass path for debug/testing
+            if entry.get('bypass_shader', False):
+                try:
+                    output_texture.copy_from(input_tetxure)
+                except Exception:
+                    pass
+                input_tetxure, output_texture = output_texture, input_tetxure
+                continue
+
+            dest_tex = entry.get('_dest_tex', output_texture)
             try:
                 dest_tex.bind_to_image(0, read=False, write=True)
             except Exception:
                 pass
+
+            # Also make the renderer output available as a sampler for shaders that sample the
+            # current framebuffer (bound to texture unit 2).
+            try:
+                input_tetxure.use(location=2)
+                try:
+                    shader.compute_shader['srcTex'].value = 2
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+            # bypass path (no custom shader run) for artifact isolation
+            if entry.get('bypass_shader', False):
+                try:
+                    data = input_tetxure.read()
+                    output_texture.write(data)
+                except Exception:
+                    pass
+                input_tetxure, output_texture = output_texture, input_tetxure
+                continue
 
             try:
                 self._attach_textures_for_shader(entry)
@@ -738,11 +798,19 @@ class Renderer3D:
                 pass
 
             try:
-                groups_x = max(1, self.rasterization_size[0] // 16)
-                groups_y = max(1, self.rasterization_size[1] // 16)
+                groups_x = max(1, (self.rasterization_size[0] + 15) // 16)
+                groups_y = max(1, (self.rasterization_size[1] + 15) // 16)
                 shader.compute_shader.run(groups_x, groups_y, 1)
+                try:
+                    self.ctx.finish()
+                except Exception:
+                    pass
             except Exception:
                 pass
+
+            input_tetxure, output_texture = output_texture, input_tetxure
+
+        self.output_tex, self.alt = input_tetxure, output_texture
 
     def signed_area_2d(self, p0, p1, p2):
         return ((p1[0] - p0[0]) * (p2[1] - p0[1])) - ((p1[1] - p0[1]) * (p2[0] - p0[0]))
@@ -799,7 +867,6 @@ class Renderer3D:
             if (h, w) != (base_h, base_w):
                 img = img.resize((base_w, base_h), Image.Resampling.NEAREST)
                 img_data = np.array(img, dtype='u1')
-                # remove the line below, h and w are now wrong anyway
 
             self.texture_layers.append(img_data)
             self.last_size = len(self.texture_layers)
@@ -1187,8 +1254,8 @@ class Renderer3D:
                                 p1 = mat[xIdx][yIdx + 1]
                                 p2 = mat[xIdx + 1][yIdx]
                                 if p1 is not None and p2 is not None:
-                                    if self.is_backface_projected(point, p1, p2):
-                                        continue
+                                    """if self.is_backface_projected(point, p1, p2):
+                                        continue"""
                                     #pygame.draw.polygon(screen, (150, 0, 150), [point, p1, p2], 0)
                                     d1 = (point[2] + p1[2] + p2[2]) / 3 if len(point) > 2 else 0
                                     tris.append((d1, (point, p1, p2), col1))
@@ -1197,8 +1264,8 @@ class Renderer3D:
                                 p1 = mat[xIdx][yIdx - 1]
                                 p2 = mat[xIdx - 1][yIdx]
                                 if p1 is not None and p2 is not None:
-                                    if self.is_backface_projected(point, p1, p2):
-                                        continue
+                                    """if self.is_backface_projected(point, p1, p2):
+                                        continue"""
                                     #pygame.draw.polygon(screen, (50, 0, 50), [point, p1, p2], 0)
                                     d1 = (point[2] + p1[2] + p2[2]) / 3 if len(point) > 2 else 0
                                     tris.append((d1, (point, p1, p2), col2))
@@ -1425,8 +1492,10 @@ class Renderer3D:
                             continue
                         if not is_skybox:
                             cam_dir = self.cam((0, 0, 1), True)  # forward in cam space
+                        # compute face normal in camera space for backface culling
+                        """unprojected_normal = self.normalT_camera_space((p0, p1, p2))
                         if np.dot(unprojected_normal, [cam_dir[0], cam_dir[1], cam_dir[2]]) > 0:
-                            continue
+                            continue"""
                         if not (p0[2] < 0 or p1[2] < 0 or p2[2] < 0):
                             all_tris.append((
                                 (p0[2], p1[2], p2[2]),
@@ -1474,9 +1543,9 @@ class Renderer3D:
             self.compute_shader['tri_count'].value = n
 
             self.output_tex.write(self._output_clear_rgba.tobytes())
+            self.alt.write(self._output_clear_rgba.tobytes())
             self.compute_shader.run((self.rasterization_size[0] + 15) // 16, (self.rasterization_size[1] + 15) // 16)
 
-            # Run any additional compute shaders registered in self.shaders (post-process, etc.)
             try:
                 # n is number of triangles processed
                 self.run_compute_shaders(n)
