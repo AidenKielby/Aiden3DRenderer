@@ -1,5 +1,6 @@
 import math
 import numpy as np
+from importlib.resources import files, as_file
 from aiden3drenderer import Renderer3D, obj_loader, renderer_type, Entity, bounding_box, CustomShader
 
 skull_script = """
@@ -68,18 +69,24 @@ def demo():
     renderer.render_type = renderer_type.RASTERIZE
     renderer.using_obj_filetype_format = True
 
-    obj = obj_loader.get_obj("skull.obj", renderer.add_texture_for_raster("skull.png"), scale=4)
-    
-    skull_entity = Entity(obj, renderer, bounding_box=bounding_box.get_bounding_box(obj[0]))
-    skull_entity.add_script(skull_script)
-    skull_entity.add_entity_variable("dist_to_player", (0,0,0))
+    # Resolve demo assets from package resources so the demo works when installed
+    demo_pkg = 'aiden3drenderer.Demo'
+    with as_file(files(demo_pkg).joinpath('skull.obj')) as skull_obj_path, \
+         as_file(files(demo_pkg).joinpath('skull.png')) as skull_png_path, \
+         as_file(files(demo_pkg).joinpath('damage_image.png')) as damage_image_path:
 
-    renderer.add_entity(skull_entity)
+        obj = obj_loader.get_obj(str(skull_obj_path), renderer.add_texture_for_raster(str(skull_png_path)), scale=4)
 
-    shader = CustomShader(dammage_shader, renderer.ctx)
+        skull_entity = Entity(obj, renderer, bounding_box=bounding_box.get_bounding_box(obj[0]))
+        skull_entity.add_script(skull_script)
+        skull_entity.add_entity_variable("dist_to_player", (0,0,0))
 
-    tex_binding = 3
-    _ = shader.add_texture("damage_image.png", tex_binding, "damageImage")
+        renderer.add_entity(skull_entity)
+
+        shader = CustomShader(dammage_shader, renderer.ctx)
+
+        tex_binding = 3
+        _ = shader.add_texture(str(damage_image_path), tex_binding, "damageImage")
 
     # dynamic distance updates every frame via renderer.shaders input
     renderer.shaders.append({
