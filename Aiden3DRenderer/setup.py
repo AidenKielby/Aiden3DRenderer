@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="aiden3drenderer",
-    version="1.9.5",
+    version="1.9.6",
     author="Aiden",
     author_email="headstone.yt@gmail.com",
     description="A lightweight 3D wireframe renderer built from scratch using Pygame",
@@ -41,7 +41,7 @@ setup(
         "pillow>=12.1.0",
         "lxml>=6.0.2"
     ],
-    package_data={"aiden3drenderer": ["fonts/*.ttf"]},
+    package_data={"aiden3drenderer": ["fonts/*.ttf", "Demo/*"]},
     extras_require={
         "dev": ["pytest>=7.0", "black", "flake8"],
     },
