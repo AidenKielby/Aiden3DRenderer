@@ -53,4 +53,21 @@ class Button:
         pygame.draw.rect(self.screen, self.col, (self.pos[0],self.pos[1],self.size[0],self.size[1]))
         pygame.draw.rect(self.screen, self.border_col, (self.pos[0],self.pos[1],self.size[0],self.size[1]), 1)
         text = self.font.render(self.text, True, self.text_color)
+        # Ensure rect is up-to-date
+        self.rect = pygame.Rect(int(self.pos[0]), int(self.pos[1]), int(self.size[0]), int(self.size[1]))
         self.screen.blit(text, text.get_rect(center=self.rect.center))
+
+    def set_rect(self, size: tuple, position: tuple):
+        # Update size and position and recompute layout-dependent resources
+        self.size = (int(size[0]), int(size[1]))
+        self.pos = (int(position[0]), int(position[1]))
+        self.rect = pygame.Rect(self.pos[0], self.pos[1], self.size[0], self.size[1])
+        # Recompute font to fit the new rectangle
+        pygame.font.init()
+        self.font = self.get_fitting_font(self.text, self.size, font_path=_get_font_path())
+
+    def set_text(self, text: str):
+        # Update text and refit font for current size
+        self.text = text
+        pygame.font.init()
+        self.font = self.get_fitting_font(self.text, self.size, font_path=_get_font_path())

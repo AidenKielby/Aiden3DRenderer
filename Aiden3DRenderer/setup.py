@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="aiden3drenderer",
-    version="1.9.2",
+    version="1.9.9", # last change: demo seperate from inverted color demo
     author="Aiden",
     author_email="headstone.yt@gmail.com",
     description="A lightweight 3D wireframe renderer built from scratch using Pygame",
@@ -41,13 +41,14 @@ setup(
         "pillow>=12.1.0",
         "lxml>=6.0.2"
     ],
-    package_data={"aiden3drenderer": ["fonts/*.ttf"]},
+    package_data={"aiden3drenderer": ["fonts/*.ttf", "Demo/*"]},
     extras_require={
         "dev": ["pytest>=7.0", "black", "flake8"],
     },
     entry_points={
         "console_scripts": [
-            "aiden3d-demo=aiden3drenderer.demo.silly_skull:demo",
+            "aiden3d-demo=aiden3drenderer.Demo.silly_skull:demo",
+            "inverted-aiden3d-demo=aiden3drenderer.Demo.silly_skull:demo_inv",
         ],
     },
     include_package_data=True,
