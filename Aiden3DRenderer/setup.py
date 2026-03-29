@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="aiden3drenderer",
-    version="1.9.7",
+    version="1.9.9", # last change: demo seperate from inverted color demo
     author="Aiden",
     author_email="headstone.yt@gmail.com",
     description="A lightweight 3D wireframe renderer built from scratch using Pygame",
