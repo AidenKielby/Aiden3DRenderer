@@ -49,6 +49,7 @@ setup(
         "console_scripts": [
             "aiden3d-demo=aiden3drenderer.Demo.silly_skull:demo",
             "inverted-aiden3d-demo=aiden3drenderer.Demo.silly_skull:demo_inv",
+            "aiden3d-mac=aiden3drenderer.Demo.silly_skull:mac_demo",
         ],
     },
     include_package_data=True,
