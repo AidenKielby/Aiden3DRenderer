@@ -8,7 +8,7 @@ Example usage:
     renderer.run()
 """
 
-__version__ = "1.9.9"
+__version__ = "1.9.11"
 __author__ = "Aiden"
 
 from .renderer import Renderer3D, register_shape, renderer_type, object_type
@@ -22,6 +22,7 @@ from .video_renderer import VideoRenderer3D, VideoRendererObject
 from .button import Button
 from .entity import Entity
 from .custom_shader import CustomShader
+from .material import Material
 
 __all__ = [
     "Renderer3D",
@@ -39,4 +40,5 @@ __all__ = [
     "Button",
     "Entity",
     "CustomShader",
+    "Material",
 ]
