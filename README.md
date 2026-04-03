@@ -365,7 +365,7 @@ python -m twine upload dist/*
 
 Created by Aiden.
 
-Some procedural terrain ideas were AI-assisted in places; core renderer, projection pipeline, camera, and packaging work are authored manually.
+Some procedural terrains, and most documentation was AI-assisted; core renderer, projection pipeline, camera, and packaging work are authored manually.
 
 ## License
 
