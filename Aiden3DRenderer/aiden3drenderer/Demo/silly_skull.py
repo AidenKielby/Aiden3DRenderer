@@ -141,5 +141,25 @@ def demo():
 
     renderer.run()
 
+def demo_mac():
+    renderer = Renderer3D(600, 600, "Skull following you and yeah", True)
+    renderer.render_type = renderer_type.MESH
+    renderer.using_obj_filetype_format = True
+
+    # Resolve demo assets from package resources so the demo works when installed
+    demo_pkg = 'aiden3drenderer.Demo'
+    with as_file(files(demo_pkg).joinpath('skull.obj')) as skull_obj_path, \
+         as_file(files(demo_pkg).joinpath('skull.png')) as skull_png_path:
+
+        obj = obj_loader.get_obj(str(skull_obj_path), renderer.add_texture_for_raster(str(skull_png_path)), scale=4)
+
+        skull_entity = Entity(obj, renderer, bounding_box=bounding_box.get_bounding_box(obj[0]))
+        skull_entity.add_script(skull_script)
+        skull_entity.add_entity_variable("dist_to_player", (0,0,0))
+
+        renderer.add_entity(skull_entity)
+
+    renderer.run()
+
 if __name__ == "__main__":
     demo()
