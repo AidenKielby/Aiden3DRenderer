@@ -55,9 +55,9 @@ If you are learning, tinkering, or teaching with this repo, that is exactly what
         <b>Physics Playground</b>
       </td>
       <td align="center">
-        <img src="media/City.png" alt="Procedural City" width="400"/>
+        <img src="media/skull_with_skybox.png" alt="Rasterized Skull" width="400"/>
         <br/>
-        <b>Procedural Terrain</b>
+        <b>Rasterized Skull</b>
       </td>
     </tr>
   </table>
