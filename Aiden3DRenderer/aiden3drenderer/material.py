@@ -20,8 +20,6 @@ class Material:
                     i+=1
                 else:
                     line_segments = line.split("=")
-                    if line_segments[0].strip().replace('"', '') == "TextureIndex":
-                        self.texture_index = int(line_segments[1].strip())
                     if line_segments[0].strip().replace('"', '') == "TexturePath":
                         self.texture_path = str(line_segments[1].strip())
                     if line_segments[0].strip().replace('"', '') == "BaseColor":

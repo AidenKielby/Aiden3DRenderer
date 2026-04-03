@@ -1,9 +1,11 @@
 import numpy as np
+
+from .material import Material
 from .object_type import object_type
 
 types = ["normal"]
 
-def get_obj(file_path: str, texture_index: int, offset=(0,0,0), scale=1, type = "normal"):
+def get_obj(file_path: str, material: Material, offset=(0,0,0), scale=1, type = "normal"):
     vertices = []
     tex_coords = []
     vertex_faces = []
@@ -50,9 +52,9 @@ def get_obj(file_path: str, texture_index: int, offset=(0,0,0), scale=1, type = 
     vertices = ((arr - pivot) * scale + pivot + offset).tolist()
 
     if type=="normal":
-        return [vertices, vertex_faces, tex_coords, texture_faces, object_type.OBJ, texture_index]
+        return [vertices, vertex_faces, tex_coords, texture_faces, object_type.OBJ, material] # now need to make renderer work with material
     else:
         print(f"not a recognized type from {' '.join(types)}. Treating it as 'normal' type")
-        return [vertices, vertex_faces, tex_coords, texture_faces, object_type.OBJ, texture_index]
+        return [vertices, vertex_faces, tex_coords, texture_faces, object_type.OBJ, material] # now need to make renderer work with material
 
     
