@@ -2,7 +2,7 @@ from lxml import etree
 import numpy as np
 from .object_type import object_type
 
-def get_dae(file_path, texture_index, offset=(0,0,0), scale=1):
+def get_dae(file_path, material, offset=(0,0,0), scale=1):
     tree = etree.parse(file_path)
     root = tree.getroot()
     
@@ -137,4 +137,4 @@ def get_dae(file_path, texture_index, offset=(0,0,0), scale=1):
         pivot = (arr.min(axis=0) + arr.max(axis=0)) * 0.5
         vertices = ((arr - pivot) * scale + pivot + offset).tolist()
     
-    return [vertices, vertex_faces, tex_coords, texture_faces, object_type.OBJ, texture_index]
+    return [vertices, vertex_faces, tex_coords, texture_faces, object_type.OBJ, material]

@@ -11,6 +11,7 @@ import moderngl
 from PIL import Image
 from enum import Enum
 
+from .material import Material
 from . import bounding_box
 from .object_type import object_type
 from .camera import Camera
@@ -283,6 +284,7 @@ class Renderer3D:
 
         self.grid_coords_list = []
         self.vertices_faces_list = []
+        self.textures = {} # name, index
         self.projected_vertices_faces_list = []
         self.using_obj_filetype_format = False
         self.projections_list = []
@@ -573,8 +575,16 @@ class Renderer3D:
         self.vertices_faces_list.append(obj)
         if bounding_box is not None:
             self.bounding_boxes.append(bounding_box)
+        mat: Material = obj[5]
+        mat = self.add_material(mat)
+        obj[5] = mat
+
+    def add_material(self, material: Material):
+        material.texture_index = self.add_texture_for_raster(material.texture_path)
+        return material
 
     def add_entity(self, entity: Entity):
+        entity.model[5] = self.add_material(entity.model[5])
         self.entities.append(entity)
 
     def _resize(self, w: int, h: int):
@@ -922,11 +932,17 @@ class Renderer3D:
             self.texture.repeat_y = False
             self.compute_shader["inTex"].value = 0
 
+            self.textures = {}
+            self.textures[img_path] = len(self.texture_layers) - 1
+            return len(self.texture_layers) - 1
+
     def add_texture_for_raster(self, img_path):
         if sys.platform != "darwin":
             if not self.texture_layers:
-                self.set_texture_for_raster(img_path)
-                return
+                return self.set_texture_for_raster(img_path) 
+            
+            if img_path in self.textures:
+                return self.textures[img_path]
 
             img = Image.open(img_path).convert("RGBA")
             img_data = np.array(img, dtype='u1')
@@ -963,6 +979,7 @@ class Renderer3D:
             self.texture.repeat_y = False
             self.compute_shader["inTex"].value = 0
 
+            self.textures[img_path] = len(self.texture_layers) - 1
             return len(self.texture_layers) -1
         
     def smooth_fadeout(self, dist):
@@ -1015,7 +1032,7 @@ class Renderer3D:
 
             self.vertices_faces_list.append([verts.tolist(),faces,uvs,uv_faces, object_type.SKYBOX, 0])
 
-    def generate_sprite_bilboard(self, texture_path, pos=(0,0,0), size=1):
+    def generate_sprite_bilboard(self, material, pos=(0,0,0), size=1):
         if sys.platform != "darwin":
             verts = [pos] 
             faces = [(0, 0, 0)] 
@@ -1023,8 +1040,8 @@ class Renderer3D:
             uvs = [(1,1), (1,0), (0,1), (0,0)]
             uv_faces = [(0,2,1), (3,1,2)]
 
-            self.vertices_faces_list.append([verts, faces, uvs, uv_faces, object_type.BILLBOARD, len(self.texture_layers), size])
-            self.add_texture_for_raster(texture_path)
+            material = self.add_material(material)
+            self.vertices_faces_list.append([verts, faces, uvs, uv_faces, object_type.BILLBOARD, material, size])
     
     def generate_cross_type_cubemap_skybox(self, radius: int, img_path):
         img_w, img_h = Image.open(img_path).size
@@ -1444,8 +1461,13 @@ class Renderer3D:
                 if mat is None:
                     continue
 
-                vertices, faces, uv, uv_faces, obj_type, texture_index = mat
+                vertices, faces, uv, uv_faces, obj_type, material = mat
+                
                 is_skybox = obj_type == object_type.SKYBOX
+                if not is_skybox:
+                    texture_index = material.texture_index
+                else:
+                    texture_index = material
                 is_billboard = obj_type == object_type.BILLBOARD
 
                 if is_billboard:
