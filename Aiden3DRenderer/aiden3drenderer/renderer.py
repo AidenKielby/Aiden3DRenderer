@@ -575,6 +575,8 @@ class Renderer3D:
 
             #self.shaders.append({'shader': cs, 'inputs': []})
 
+        self.rasterization_mult = 0.5
+
     def add_obj(self, obj, bounding_box=None):
         self.vertices_faces_list.append(obj)
         if bounding_box is not None:
@@ -654,6 +656,11 @@ class Renderer3D:
             except Exception:
                 # Defensive: if any button missing, ignore and continue
                 pass
+        self.set_rasterization_size((int(self.width*self.rasterization_mult), int(self.height*self.rasterization_mult)))
+    
+    def set_rasterization_downsize(self, size_mult: float):
+        self.rasterization_mult = size_mult
+        self.set_rasterization_size((int(self.width*self.rasterization_mult), int(self.height*self.rasterization_mult)))
 
     def set_rasterization_size(self, size: tuple[int, int]):
         width, height = size
@@ -884,13 +891,12 @@ class Renderer3D:
                 groups_x = max(1, (self.rasterization_size[0] + 15) // 16)
                 groups_y = max(1, (self.rasterization_size[1] + 15) // 16)
                 shader.compute_shader.run(groups_x, groups_y, 1)
-                try:
+                """try:
                     self.ctx.finish()
                 except Exception:
-                    pass
+                    pass"""
             except Exception:
                 pass
-
             input_tetxure, output_texture = output_texture, input_tetxure
 
         self.output_tex, self.alt = input_tetxure, output_texture
