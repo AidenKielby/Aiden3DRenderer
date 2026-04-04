@@ -10,7 +10,7 @@ Constructor
 
 `Entity(model, renderer, start_velocity: list[float] = [0,0,0], starting_rotation: list[float] = [0,0,0], bounding_box = None)`
 
-- `model` — a model in the renderer's internal format (`[vertices, faces, uvs, uv_faces, object_type, texture_index]`).
+- `model` — a model in the renderer's internal format (`[vertices, faces, uvs, uv_faces, object_type, material]`).
 - `renderer` — `Renderer3D` instance used for collision queries and rendering context.
 - `bounding_box` — optional precomputed bounding box structure.
 
@@ -43,10 +43,11 @@ Example
 -------
 
 ```python
-from aiden3drenderer import Entity, obj_loader, Renderer3D
+from aiden3drenderer import Entity, obj_loader, Renderer3D, Material
 
 renderer = Renderer3D()
-obj = obj_loader.get_obj('./assets/alloy_forge_block.obj', texture_index=0)
+mat = Material('entity_mat', './assets/alloy_forge_block.png', texture_index=0)
+obj = obj_loader.get_obj('./assets/alloy_forge_block.obj', material=mat)
 entity = Entity(obj, renderer)
 entity.toggle_gravity()
 renderer.add_entity(entity)

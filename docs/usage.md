@@ -14,7 +14,7 @@ Runtime settings
 
 Textures
 - Use `set_texture_for_raster(path)` or `add_texture_for_raster(path)` to supply texture layers for raster mode.
-- OBJ UVs are parsed by `obj_loader.get_obj()` and used automatically by the rasterizer when present.
+- OBJ UVs are parsed by `obj_loader.get_obj()`. The loader now takes a `Material` object and carries it in the returned model tuple.
 
 Controls
 - `W/A/S/D` — Move camera forward/left/back/right

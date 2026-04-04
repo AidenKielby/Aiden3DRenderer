@@ -7,6 +7,11 @@ Signature
 
 `get_dae(file_path: str, texture_index: int, offset: tuple[float,float,float] = (0,0,0), scale: float = 1) -> list`
 
+Compatibility warning
+---------------------
+
+`Renderer3D.add_obj` currently expects a `Material` object at model index `5`. `get_dae` currently returns an integer `texture_index` at index `5`, so raw `get_dae` output is not directly compatible with `add_obj` without conversion.
+
 Notes
 -----
 
@@ -32,10 +37,14 @@ Example
 -------
 
 ```python
-from aiden3drenderer import dae_loader, Renderer3D
+from aiden3drenderer import dae_loader, Renderer3D, Material
 
 model = dae_loader.get_dae('assets/model.dae', texture_index=0, offset=(0,0,0), scale=1.0)
+
+# Convert index 5 to Material to match Renderer3D.add_obj expectations.
+model[5] = Material('dae_mat', 'assets/model_texture.png', texture_index=model[5])
+
 renderer = Renderer3D()
-renderer.vertices_faces_list.append(model)
+renderer.add_obj(model)
 renderer.run()
 ```

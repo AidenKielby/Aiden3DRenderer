@@ -15,10 +15,15 @@ Architectural overview (why)
 The renderer exposes both an interactive runtime (`run()` / `loopable_run()`) for live applications and a low-level API that allows callers to provide vertex/face data in the library's internal format:
 
 ```
-[vertices, faces, uvs, uv_faces, object_type, texture_index]
+[vertices, faces, uvs, uv_faces, object_type, material]
 ```
 
-This design separates model loading (OBJ/DAE), per-frame projection, and the final rasterization step so advanced users can preprocess geometry, run off-line passes, or chain compute shaders.
+`material` is typically a `Material` instance (for regular OBJ meshes). Some internally-generated objects use special cases:
+
+- Skybox objects store an integer texture slot in place of `Material`.
+- Billboard objects append a seventh value (`size`) after `material`.
+
+This design separates model loading, per-frame projection, and final rasterization so advanced users can preprocess geometry, run off-line passes, or chain compute shaders.
 
 Important platform notes
 ------------------------
@@ -74,7 +79,12 @@ Important notes on construction
 
 Selected methods (signature, behavior, exceptions)
     add_obj(obj: list, bounding_box: Optional[list] = None) -> None
-        Append an already-parsed object (format returned by `obj_loader.get_obj` / `get_dae`) to the renderer. If `bounding_box` is provided it is appended to `renderer.bounding_boxes`.
+        Append an already-parsed object to the renderer. If `bounding_box` is provided it is appended to `renderer.bounding_boxes`.
+
+        For OBJ-style objects, `obj[5]` is expected to be a `Material`. `add_obj` calls `add_material`, which loads the material texture into the raster texture array and mutates `obj[5].texture_index`.
+
+    add_material(material: Material) -> Material
+        Registers a material texture path through `add_texture_for_raster` and returns the updated `Material`.
 
     add_entity(entity: Entity) -> None
         Append an `Entity` instance; `run()` will call `entity.update()` each frame.
@@ -102,8 +112,8 @@ Selected methods (signature, behavior, exceptions)
     generate_cubemap_skybox(radius: int, texture_path: str, left_uvs, right_uvs, top_uvs, bottom_uvs, forward_uvs, backward_uvs) -> None
         Convenience to create a skybox mesh that uses `skybox_texture` (bound separately). Will call `Image.open` and may raise if the file is missing.
 
-    generate_sprite_bilboard(texture_path: str, pos=(0,0,0), size: float = 1) -> None
-        Adds a `BILLBOARD` object and registers the provided texture into the texture array.
+    generate_sprite_bilboard(material: Material, pos=(0,0,0), size: float = 1) -> None
+        Adds a `BILLBOARD` object and registers the material texture into the texture array.
 
     project_3d_to_2d(...), project_3d_to_2d_flat(...)
         Core projection helpers. They return lists parallel to input geometry where off-screen or unclippable vertices are replaced with `None`.
@@ -133,13 +143,14 @@ Real‑world usage
 Minimal interactive example:
 
 ```python
-from aiden3drenderer import Renderer3D, renderer_type, obj_loader
+from aiden3drenderer import Renderer3D, renderer_type, obj_loader, Material
 
 renderer = Renderer3D(width=800, height=600)
 renderer.set_render_type(renderer_type.POLYGON_FILL)
 
 # Load an OBJ and append it in the library's internal format
-obj = obj_loader.get_obj('./assets/alloy_forge_block.obj', texture_index=0)
+mat = Material('alloy', './assets/alloy_forge_block.png', texture_index=0)
+obj = obj_loader.get_obj('./assets/alloy_forge_block.obj', material=mat)
 renderer.add_obj(obj)
 
 renderer.run()
@@ -148,7 +159,8 @@ renderer.run()
 Notes about loading models
 -------------------------
 
-- `obj_loader.get_obj(file_path, texture_index, ...)` and `dae_loader.get_dae(...)` both return the internal format used by the renderer: `[vertices, faces, uvs, uv_faces, object_type.OBJ, texture_index]`.
+- `obj_loader.get_obj(file_path, material, ...)` returns `[vertices, faces, uvs, uv_faces, object_type.OBJ, material]`.
+- `dae_loader.get_dae(...)` currently returns `[vertices, faces, uvs, uv_faces, object_type.OBJ, texture_index]`, which is not directly compatible with `Renderer3D.add_obj` expecting a `Material` at index `5`.
 - When using the rasterizer, ensure textures supplied with `set_texture_for_raster` / `add_texture_for_raster` are the same resolution and RGBA.
 
 Cross references

@@ -12,6 +12,9 @@ Members
 Usage
 -----
 
-This enum is part of the model tuple returned by `obj_loader.get_obj()` and `dae_loader.get_dae()`: the fifth element is an `object_type` value used by `Renderer3D` to pick projection and shading behaviour.
+This enum is part of the model tuple returned by loaders: the fifth element is an `object_type` value used by `Renderer3D` to pick projection and shading behaviour.
+
+- OBJ loader shape: `[vertices, faces, uvs, uv_faces, object_type, material]`
+- DAE loader shape: `[vertices, faces, uvs, uv_faces, object_type, texture_index]` (currently not directly compatible with `Renderer3D.add_obj` without conversion)
 
 See also: [OBJ Loader](obj_loader.md), [DAE Loader](dae_loader.md), [Renderer](renderer.md).

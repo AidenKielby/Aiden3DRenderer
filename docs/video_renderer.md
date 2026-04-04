@@ -19,8 +19,9 @@ Classes
 Constructor behavior and caveats
 --------------------------------
 
-- The constructor calls `get_obj(shape_path)` for each provided `VideoRendererObject`. The code in `examples/test_vid_render.py` demonstrates usage.
-- Note: `obj_loader.get_obj` in the package requires a `texture_index` parameter; the `VideoRenderer3D` constructor calls `get_obj(shape_path)` without `texture_index` (legacy mismatch). In this codebase a fallback `build/lib` copy of `obj_loader.get_obj` exists with a different signature; if you run into a `TypeError` adjust the call site in `video_renderer.py` to `get_obj(shape_path, 0)`.
+- The constructor calls `get_obj(shape_path)` for each provided `VideoRendererObject`.
+- Current source mismatch: `obj_loader.get_obj` now requires a `Material` argument and returns a 6-item model list. `video_renderer.py` still calls `get_obj(shape_path)` and unpacks into two variables (`shape_verts, shape_faces`).
+- In current package source this typically raises `TypeError` at initialization before rendering begins.
 
 Methods of interest
 -------------------
@@ -33,10 +34,10 @@ Performance and correctness notes
 --------------------------------
 
 - The per-pixel triangle fill is O(width*height*triangles) and will be slow for large frames or many triangles. This module is suited to small example renders as included in `examples/`.
-- The constructor's call to `get_obj(shape_path)` may need the `texture_index` argument depending on which `obj_loader.py` is on `sys.path`. See the mismatch note above and `audit_report.md` for remediation steps.
+- `add_shape(shape_path)` has the same loader mismatch as the constructor and is affected by the same issue.
 
-Example (from repository)
--------------------------
+Legacy example (may fail in current source)
+-------------------------------------------
 
 ```python
 from aiden3drenderer import VideoRenderer3D, VideoRendererObject
@@ -49,4 +50,4 @@ vr = VideoRenderer3D(300, 250, 5, [vO1])
 vr.render('test.avi', 5, verbose=True)
 ```
 
-See also: [OBJ Loader](obj_loader.md). If you encounter `TypeError` when loading OBJs, change `get_obj(shape_path)` to `get_obj(shape_path, 0)` in `video_renderer.py`.
+See also: [OBJ Loader](obj_loader.md) and [Audit Report](audit_report.md) for the exact drift details.

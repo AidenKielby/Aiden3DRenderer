@@ -6,6 +6,7 @@ Quick links (primary user-facing modules):
 
 - [Renderer](renderer.md) — `Renderer3D`, `register_shape`, `renderer_type`
 - [Camera](camera.md) — `Camera`
+- [Material](material.md) — `Material`
 - [OBJ Loader](obj_loader.md) — `get_obj`
 - [DAE Loader](dae_loader.md) — `get_dae`
 - [Entities](entities.md) — `Entity`
@@ -24,7 +25,13 @@ Public surface (as exported by aiden3drenderer.__init__):
 - `renderer_type` — enum used to select rendering backend (mesh, polygon-fill, rasterize).
 - `object_type` — enum describing object semantics (OBJ, SKYBOX, BILLBOARD).
 - `Camera` — camera controls and input handling. See [Camera](camera.md).
+- `Material` — material container and `.mat` file parser. See [Material](material.md).
 - `physics`, `obj_loader`, `dae_loader`, `bounding_box` — loader/utility modules; see their pages.
 - `VideoRenderer3D`, `VideoRendererObject` — helper for offline video rendering (high-drift; see [audit_report](audit_report.md)).
+
+Packaging metadata note
+-----------------------
+
+This repository currently defines package metadata in `setup.py` (version, dependencies, console scripts). No `pyproject.toml` file is present.
 
 If a page mentions an exception or platform requirement (OpenGL, lxml, PIL/Pillow), that reflects an explicit raise in the code path or a dependency used by the implementation.
