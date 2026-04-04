@@ -33,6 +33,8 @@ def register_shape(name: str, key=None, is_animated: bool = False, color: tuple[
         return func
     return decorator
 
+
+
 class renderer_type(Enum):
     RASTERIZE = "rasterize"
     POLYGON_FILL = "polygon_fill"
@@ -327,7 +329,7 @@ class Renderer3D:
         else:
             self.compute_shader = None
         
-        
+        self.disable_finish_call = False # when True, increases performance, but might lead to artifacts!
         self.tri_buffer = self.ctx.buffer(reserve=tri_dtype.itemsize * 10000)
 
         self.texture_path = None
@@ -891,10 +893,11 @@ class Renderer3D:
                 groups_x = max(1, (self.rasterization_size[0] + 15) // 16)
                 groups_y = max(1, (self.rasterization_size[1] + 15) // 16)
                 shader.compute_shader.run(groups_x, groups_y, 1)
-                """try:
-                    self.ctx.finish()
-                except Exception:
-                    pass"""
+                if self.disable_finish_call:
+                    try:
+                        self.ctx.finish()
+                    except Exception:
+                        pass
             except Exception:
                 pass
             input_tetxure, output_texture = output_texture, input_tetxure
