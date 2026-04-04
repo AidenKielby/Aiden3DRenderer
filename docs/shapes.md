@@ -60,3 +60,4 @@ Notes
 
 - Generators are purely functional and return their grid; they do not mutate renderer state themselves.
 - `is_animated=True` implies the renderer will call the function with a `time` keyword argument each frame.
+- For equation-driven dynamic shape registration, see [Math Shape](math_shape.md).

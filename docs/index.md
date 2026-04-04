@@ -7,6 +7,8 @@ Sections:
 - [API Reference](api.md)
 - [Usage & Controls](usage.md)
 - [Tutorials & Examples](tutorials.md)
+- [Demo Module Guide](demo.md)
+- [Math Shape Guide](math_shape.md)
 - [Entities Guide](entities.md)
 - [Custom Shaders Guide](custom_shaders.md)
 - [Material Guide](material.md)
