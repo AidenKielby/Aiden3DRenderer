@@ -1201,7 +1201,7 @@ class Renderer3D:
                 else:
                     half_w, half_h = self.half_w, self.half_h
 
-                px = dd_x * half_w + half_w
+                px = dd_x * half_h + half_w
                 py = dd_y * half_h + half_h
 
                 """margin = 5000
@@ -1279,7 +1279,7 @@ class Renderer3D:
             else:
                 half_w, half_h = self.half_w, self.half_h
 
-            px = dd_x * half_w + half_w
+            px = dd_x * half_h + half_w
             py = dd_y * half_h + half_h
 
             """margin = 1000
@@ -1295,7 +1295,7 @@ class Renderer3D:
                 projected.append((px, py, z3))
 
         return projected
-    
+
     def render_wireframe(self, matrix):
         if self.render_type == renderer_type.MESH:
             if matrix is None:
@@ -1494,7 +1494,7 @@ class Renderer3D:
                             return None
                         f = 1.0 / math.tan(fov_rad / 2)
                         return (
-                            (c[0] * f / -c[2]) * self.raster_half_w + self.raster_half_w,
+                            (c[0] * f / -c[2]) * self.raster_half_h + self.raster_half_w,
                             (c[1] * f / -c[2]) * self.raster_half_h + self.raster_half_h,
                             c[2]
                         )
@@ -1552,7 +1552,7 @@ class Renderer3D:
                             def proj(v):
                                 f = 1.0 / math.tan(fov_rad / 2)
                                 return (
-                                    (v[0] * f / -v[2]) * self.raster_half_w + self.raster_half_w,
+                                    (v[0] * f / -v[2]) * self.raster_half_h + self.raster_half_w,
                                     (v[1] * f / -v[2]) * self.raster_half_h + self.raster_half_h,
                                     v[2]
                                 )
@@ -1711,7 +1711,7 @@ class Renderer3D:
                             def proj(v):
                                 f = 1.0 / math.tan(fov_rad / 2)
                                 return (
-                                    (v[0] * f / -v[2]) * self.half_w + self.half_w,
+                                    (v[0] * f / -v[2]) * self.half_h + self.half_w,
                                     (v[1] * f / -v[2]) * self.half_h + self.half_h,
                                     v[2]
                                 )
@@ -1792,7 +1792,7 @@ class Renderer3D:
                             def proj(v):
                                 f = 1.0 / math.tan(fov_rad / 2)
                                 return (
-                                    (v[0] * f / -v[2]) * self.half_w + self.half_w,
+                                    (v[0] * f / -v[2]) * self.half_h + self.half_w,
                                     (v[1] * f / -v[2]) * self.half_h + self.half_h,
                                     v[2]
                                 )
