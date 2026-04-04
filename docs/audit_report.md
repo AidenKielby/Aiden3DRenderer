@@ -1,30 +1,27 @@
 # Audit Report — Full Library Audit
 
-Date: 2026-04-03
+Date: 2026-04-04
 
 Scope
 -----
 
-This report summarizes a deep, manual audit of the `Aiden3DRenderer` package source (package root `aiden3drenderer/`) and the existing `docs/` material. I compared the live Python source to the docs and updated the `docs/` files to reflect the code's real behavior.
+This report documents a manual, source-first audit of package code in `aiden3drenderer/` against docs in `docs/`.
 
-Package metadata source
------------------------
+Supreme-directive compliance
+----------------------------
 
-The repository currently uses `setup.py` for packaging metadata and console entry points. No `pyproject.toml` file exists in the project root.
+- Manual source reading only (no audit automation scripts).
+- No source (`.py`) edits were made.
+- Documentation changes are based on directly observed runtime code paths and signatures.
 
-Method
-------
+Public surface and packaging truth
+----------------------------------
 
-- Read `aiden3drenderer/__init__.py` to identify public surface area.
-- Opened each module referenced in `__all__` and traced public functions and classes to understand inputs, outputs, side effects, and exceptions.
-- Compared each `docs/*.md` file with code and updated the docs to match the implementation.
-
-Summary of changes
-------------------
-
-- Rewrote `api.md`, `renderer.md`, `camera.md`, `shapes.md`, `entities.md`, `obj_loader.md`, `dae_loader.md`, `physics.md`, `custom_shaders.md`, `video_renderer.md`, `button.md`, `bounding_box.md`, and `object_type.md` to match the current code.
-- Added `material.md` to document the `Material` class now exported by `aiden3drenderer.__init__`.
-- Corrected stale usage snippets in `tutorials.md` to use the current `obj_loader.get_obj(file_path, material, ...)` API.
+- Public API source: `aiden3drenderer/__init__.py`
+  - Exported names include `Renderer3D`, `register_shape`, `renderer_type`, `object_type`, `Camera`, `Material`, `Entity`, `CustomShader`, `VideoRenderer3D`, `VideoRendererObject`, plus utility modules.
+   - `__version__` is `1.10.4`.
+- Packaging metadata source: `setup.py` (also version `1.10.4`).
+- No `pyproject.toml` is present in the repository root.
 
 Source-to-doc relationship map
 ------------------------------
@@ -42,57 +39,55 @@ Source-to-doc relationship map
 - `aiden3drenderer/object_type.py` -> `docs/object_type.md`
 - `aiden3drenderer/button.py` -> `docs/button.md`
 - `aiden3drenderer/shapes.py` -> `docs/shapes.md`
-- `aiden3drenderer/__init__.py` -> `docs/api.md` (public API export map)
+- `aiden3drenderer/__init__.py` + `setup.py` -> `docs/api.md`
 
-High‑drift findings (priority fixes)
-----------------------------------
+Highest-drift findings (current)
+--------------------------------
 
-1. VideoRenderer / OBJ loader signature mismatch
-   - `video_renderer.VideoRenderer3D.__init__` calls `get_obj(shape_path)` and unpacks to two variables.
-   - Current `obj_loader.get_obj` requires `material: Material` and returns a 6-item model list (`[verts, faces, uvs, uv_faces, object_type, material]`).
-   - This is a runtime-breaking incompatibility; constructor and `add_shape` paths are affected.
+1. VideoRenderer / OBJ loader contract mismatch (runtime-breaking)
+   - `VideoRenderer3D.__init__` and `VideoRenderer3D.add_shape` call `get_obj(shape_path)` and unpack 2 values.
+   - Current `obj_loader.get_obj` requires `material` and returns 6 values.
+   - Effect: constructor/add-shape paths can fail before rendering with `TypeError` or unpacking errors.
 
-2. DAE loader / Renderer integration mismatch
-   - `dae_loader.get_dae` returns `texture_index` (int) at model index `5`.
-   - `Renderer3D.add_obj` expects index `5` to be `Material` and calls `add_material(material)`, which accesses `material.texture_path`.
-   - Result: DAE output is not directly compatible with `add_obj` without conversion.
+2. `loopable_run` QUIT-event path uses undefined local
+   - In `Renderer3D.loopable_run`, handling `QUIT` executes `running = False` but no local `running` is initialized in that function.
+   - Effect: QUIT event can raise `NameError` in loopable mode.
 
-3. Public API drift: newly exported `Material` class was undocumented
-   - `aiden3drenderer.__init__` exports `Material`, but docs previously had no dedicated page or API link.
-   - This is now resolved by adding `docs/material.md` and linking from `api.md` and `index.md`.
+3. VideoRenderer rotation-rate semantics do not match field name
+   - Source computes `rot_per_f = rotations_per_seccond * fps`.
+   - The name suggests per-second input, but multiplying by FPS creates very large per-frame increments.
+   - Effect: rotations are typically much faster than implied by public field naming.
 
-4. Silent exception handling and broad try/except usage
-   - Many non-critical paths use bare `except:` which hides useful errors (e.g., texture load failures, moderngl errors). Recommendation: tighten except clauses and log exceptions to stderr to aid debugging.
+4. Broad exception swallowing in renderer/shader integration
+   - Multiple non-critical paths use broad exception catches.
+   - Effect: failures can be silently ignored, increasing debugging difficulty.
 
-5. Security: `Entity.use_scripts()` executes arbitrary Python via `exec()`
-   - This is an intentional design but must be highlighted. Docs now include a security warning.
+5. `Entity` script execution is intentionally unsafe by design
+   - `Entity.use_scripts()` executes attached script strings with `exec`.
+   - Effect: untrusted scripts are a security risk and should never be loaded.
 
-6. Platform-specific behavior for compute shaders
-   - The compute shader path is disabled on macOS (`sys.platform == 'darwin'`). The docs now call this out and warn about OpenGL 4.3 requirements.
+Drift resolved in this docs pass
+--------------------------------
 
-Other observations
-------------------
+- DAE docs were stale relative to current source.
+  - Current source now accepts/returns `Material` in `dae_loader.get_dae` model index `5`.
+  - Updated docs now reflect parity with `obj_loader` and `Renderer3D.add_obj` model contracts.
 
-- `CustomShader` uses a heuristic GLSL parser which works for the project's shaders but is not robust for complex declarations.
-- `VideoRenderer3D.render()` performs per-pixel CPU rasterization; its performance characteristics are documented in the updated docs.
+Files updated in this correction pass
+-------------------------------------
 
-Recommended follow-ups (non-blocking)
-------------------------------------
+- `docs/api.md`
+- `docs/dae_loader.md`
+- `docs/object_type.md`
+- `docs/renderer.md`
+- `docs/usage.md`
+- `docs/video_renderer.md`
+- `docs/audit_report.md`
 
-- Replace broad `except:` blocks with targeted exception handling and add logging (or re-raise after logging) for recoverable errors.
-- Add unit tests for loader functions (`obj_loader`, `dae_loader`) and for the `CustomShader` parser to prevent regression.
-- Consider sanitizing or removing `exec`-based scripting and replacing it with a safer callback interface.
+Recommended remediation sequence
+-------------------------------
 
-Files changed
--------------
-
-- Updated: `docs/api.md`, `docs/renderer.md`, `docs/camera.md`, `docs/shapes.md`, `docs/entities.md`, `docs/object_type.md`, `docs/obj_loader.md`, `docs/dae_loader.md`, `docs/physics.md`, `docs/custom_shaders.md`, `docs/video_renderer.md`, `docs/button.md`, `docs/bounding_box.md`, `docs/tutorials.md`, `docs/index.md`
-- Added: `docs/material.md`
-- Added: `docs/audit_report.md`
-
-Next steps
-----------
-
-- Patch `video_renderer.py` to use `Material` and consume the new `get_obj` return shape.
-- Decide whether `dae_loader.get_dae` should return a `Material` (to match OBJ flow) or whether `Renderer3D.add_obj` should accept both `Material` and `texture_index`.
-- Add focused tests for public signatures and loader behavior to prevent future docs drift.
+1. Fix `video_renderer.py` to pass `Material` into `get_obj` and handle the 6-item return model.
+2. Fix `Renderer3D.loopable_run` QUIT handling to avoid undefined `running` usage.
+3. Clarify or correct VideoRenderer rotation semantics (`rotations_per_seccond` vs per-frame increment math).
+4. Replace broad exception catches with targeted exceptions plus logging in shader and texture paths.
