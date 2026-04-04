@@ -6,6 +6,7 @@ import pygame
 from pygame import QUIT
 import sys
 import importlib
+from importlib import resources
 import numpy as np
 import moderngl
 from PIL import Image
@@ -352,6 +353,9 @@ class Renderer3D:
         self.raster_half_h = self.rasterization_size[1] // 2
 
         self.entities: list[Entity] = []
+        pathImg = str(resources.files("aiden3drenderer").joinpath("fonts/not_a_font_but_whatever.png"))
+        self.shape_material = Material("shapeMat", pathImg, None)
+        self.shape_material = self.add_material(self.shape_material)
 
         def exit_button():
             pygame.quit()
@@ -1141,7 +1145,7 @@ class Renderer3D:
                         uv_faces.append((3, 2, 1))
 
         verts = [p for row in matrix for p in row]
-        obj = [verts, faces, uv, uv_faces, False, 0]
+        obj = [verts, faces, uv, uv_faces, object_type.OBJ, self.shape_material]
         self.bounding_boxes.append(bounding_box.get_bounding_box(verts))
         return obj
 
@@ -2084,6 +2088,9 @@ class Renderer3D:
         pygame.quit()
 
     def loopable_run(self):
+        self.time = pygame.time.get_ticks()
+        self.delta_time = (self.time-self.last_time)/1000
+        self.last_time = self.time
         ent_indexes = []
         for e in self.entities:
             e.update()
@@ -2099,11 +2106,11 @@ class Renderer3D:
         # Handle events
         for event in pygame.event.get():
             if event.type == QUIT:
-                pygame.quit()
-                sys.exit()
+                running = False
 
             elif event.type == pygame.VIDEORESIZE:
                 self._resize(event.w, event.h)
+                
             self.camera.handle_mouse_events(event)
             if self.show_pause_menu:
                 active_buttons = self.settings_buttons if self.show_settings_menu else self.main_pause_buttons
@@ -2128,29 +2135,41 @@ class Renderer3D:
                 shape_name = self.shapes[i]
                 #print(shape_name)
                 self.grid_coords_list.append(self.generate_shape(shape_name, self.animation_time))
+            if self.render_type != renderer_type.RASTERIZE:
+                for i in range(len(self.grid_coords_list)):
+                    self.grid_coords = self.grid_coords_list[i]
+                    if self.grid_coords:
+                        projected = self.project_3d_to_2d(
+                            self.grid_coords[0],
+                            fov_rad,
+                            tuple(self.camera.position),
+                            tuple(self.camera.rotation)
+                        )
+                        self.projections_list.append(projected)
 
-            for i in range(len(self.grid_coords_list)):
-                self.grid_coords = self.grid_coords_list[i]
-                if self.grid_coords:
-                    projected = self.project_3d_to_2d(
-                        self.grid_coords[0],
-                        fov_rad,
-                        tuple(self.camera.position),
-                        tuple(self.camera.rotation)
-                    )
-                    self.projections_list.append(projected)
+                if self.render_type == renderer_type.POLYGON_FILL:
+                    self.render_wireframe(self.projections_list)
+                elif self.render_type == renderer_type.MESH:
+                    for proj in self.projections_list:
+                        self.render_wireframe(proj)
+            else:
+                if self.grid_coords_list is not None:
+                    vfl = [
+                        self.shape_to_verticies_faces(proj[0])
+                        for proj in self.grid_coords_list
+                    ]
 
-            if self.render_type == renderer_type.POLYGON_FILL:
-                self.render_wireframe(self.projections_list)
-            elif self.render_type == renderer_type.MESH:
-                for proj in self.projections_list:
-                    self.render_wireframe(proj)
-            elif self.render_type == renderer_type.RASTERIZE:
-                self.projected_vertices_faces_list = [
-                    self.shape_to_verticies_faces(proj)
-                    for proj in self.projections_list
-                ]
-                self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
+                    for i in range(len(vfl)):
+                        projected = self.project_3d_to_2d_flat(
+                                vfl[i][0],
+                                fov_rad,
+                                tuple(self.camera.position),
+                                tuple(self.camera.rotation),
+                                vfl[i][4]
+                            )
+                        self.projected_vertices_faces_list.append([projected, vfl[i][1], vfl[i][2], vfl[i][3], vfl[i][4], vfl[i][5]])
+                    #if not self.is_mesh:
+                    self.render_shape_from_obj_format(self.projected_vertices_faces_list, self.texture_path)
         else:
             for i in range(len(self.vertices_faces_list)):
                 projected = self.project_3d_to_2d_flat(
