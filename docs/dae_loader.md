@@ -5,12 +5,12 @@ Parses COLLADA `.dae` files (reads geometry primitives: `triangles`, `polylist`,
 Signature
 ---------
 
-`get_dae(file_path: str, texture_index: int, offset: tuple[float,float,float] = (0,0,0), scale: float = 1) -> list`
+`get_dae(file_path: str, material: Material, offset: tuple[float,float,float] = (0,0,0), scale: float = 1) -> list`
 
-Compatibility warning
----------------------
+Compatibility note
+------------------
 
-`Renderer3D.add_obj` currently expects a `Material` object at model index `5`. `get_dae` currently returns an integer `texture_index` at index `5`, so raw `get_dae` output is not directly compatible with `add_obj` without conversion.
+`get_dae` now returns a `Material` object at model index `5`, matching `obj_loader.get_obj` and `Renderer3D.add_obj` expectations.
 
 Notes
 -----
@@ -25,8 +25,14 @@ Return value
 Returns the same internal model format used by the renderer:
 
 ```
-[vertices, vertex_faces, tex_coords, texture_faces, object_type.OBJ, texture_index]
+[vertices, vertex_faces, tex_coords, texture_faces, object_type.OBJ, material]
 ```
+
+Additional behavior
+-------------------
+
+- Uses `max(scale, 0)` so negative scales are clamped to `0`.
+- If no vertices are found, the function returns an empty vertex list and any parsed faces/UV data without raising by default.
 
 Exceptions
 ----------
@@ -39,10 +45,8 @@ Example
 ```python
 from aiden3drenderer import dae_loader, Renderer3D, Material
 
-model = dae_loader.get_dae('assets/model.dae', texture_index=0, offset=(0,0,0), scale=1.0)
-
-# Convert index 5 to Material to match Renderer3D.add_obj expectations.
-model[5] = Material('dae_mat', 'assets/model_texture.png', texture_index=model[5])
+mat = Material('dae_mat', 'assets/model_texture.png', texture_index=0)
+model = dae_loader.get_dae('assets/model.dae', material=mat, offset=(0,0,0), scale=1.0)
 
 renderer = Renderer3D()
 renderer.add_obj(model)

@@ -34,4 +34,6 @@ Packaging metadata note
 
 This repository currently defines package metadata in `setup.py` (version, dependencies, console scripts). No `pyproject.toml` file is present.
 
+Current observed package version is `1.10.4` in both `aiden3drenderer/__init__.py` and `setup.py`.
+
 If a page mentions an exception or platform requirement (OpenGL, lxml, PIL/Pillow), that reflects an explicit raise in the code path or a dependency used by the implementation.

@@ -22,6 +22,7 @@ Constructor behavior and caveats
 - The constructor calls `get_obj(shape_path)` for each provided `VideoRendererObject`.
 - Current source mismatch: `obj_loader.get_obj` now requires a `Material` argument and returns a 6-item model list. `video_renderer.py` still calls `get_obj(shape_path)` and unpacks into two variables (`shape_verts, shape_faces`).
 - In current package source this typically raises `TypeError` at initialization before rendering begins.
+- Rotation increment logic currently computes `rot_per_f = rotations_per_seccond * fps` (multiplication), which yields much larger per-frame rotation than the field name suggests.
 
 Methods of interest
 -------------------

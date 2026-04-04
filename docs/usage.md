@@ -15,6 +15,7 @@ Runtime settings
 Textures
 - Use `set_texture_for_raster(path)` or `add_texture_for_raster(path)` to supply texture layers for raster mode.
 - OBJ UVs are parsed by `obj_loader.get_obj()`. The loader now takes a `Material` object and carries it in the returned model tuple.
+- DAE meshes loaded with `dae_loader.get_dae()` also carry a `Material` at index `5`, matching `Renderer3D.add_obj()` expectations.
 
 Controls
 - `W/A/S/D` — Move camera forward/left/back/right
