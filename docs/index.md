@@ -9,6 +9,8 @@ Sections:
 - [Tutorials & Examples](tutorials.md)
 - [Entities Guide](entities.md)
 - [Custom Shaders Guide](custom_shaders.md)
+- [Material Guide](material.md)
+- [Audit Report](audit_report.md)
 
 Auto API summary:
 
