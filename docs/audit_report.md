@@ -18,9 +18,9 @@ Public surface and packaging truth
 ----------------------------------
 
 - Public API source: `aiden3drenderer/__init__.py`
-  - Exported names include `Renderer3D`, `register_shape`, `renderer_type`, `object_type`, `Camera`, `Material`, `Entity`, `CustomShader`, `VideoRenderer3D`, `VideoRendererObject`, plus utility modules.
-   - `__version__` is `1.10.4`.
-- Packaging metadata source: `setup.py` (also version `1.10.4`).
+   - Root imports include `Renderer3D`, `register_shape`, `renderer_type`, `object_type`, `Camera`, `Material`, `MathShape`, `Entity`, `CustomShader`, `VideoRenderer3D`, `VideoRendererObject`, plus utility modules.
+   - `__version__` is `1.11.1`.
+- Packaging metadata source: `setup.py` (also version `1.11.1`).
 - No `pyproject.toml` is present in the repository root.
 
 Source-to-doc relationship map
@@ -34,11 +34,13 @@ Source-to-doc relationship map
 - `aiden3drenderer/entity.py` -> `docs/entities.md`
 - `aiden3drenderer/physics.py` -> `docs/physics.md`
 - `aiden3drenderer/custom_shader.py` -> `docs/custom_shaders.md`
+- `aiden3drenderer/math_shape.py` -> `docs/math_shape.md`
 - `aiden3drenderer/video_renderer.py` -> `docs/video_renderer.md`
 - `aiden3drenderer/bounding_box.py` -> `docs/bounding_box.md`
 - `aiden3drenderer/object_type.py` -> `docs/object_type.md`
 - `aiden3drenderer/button.py` -> `docs/button.md`
 - `aiden3drenderer/shapes.py` -> `docs/shapes.md`
+- `aiden3drenderer/Demo/silly_skull.py` -> `docs/demo.md`
 - `aiden3drenderer/__init__.py` + `setup.py` -> `docs/api.md`
 
 Highest-drift findings (current)
@@ -66,12 +68,26 @@ Highest-drift findings (current)
    - `Entity.use_scripts()` executes attached script strings with `exec`.
    - Effect: untrusted scripts are a security risk and should never be loaded.
 
+6. Packaged demo entrypoints currently use stale loader argument shape
+   - `Demo/silly_skull.py` calls `obj_loader.get_obj(path, renderer.add_texture_for_raster(...), ...)`.
+   - Current `get_obj` expects `material: Material`.
+   - Effect: packaged `aiden3d-demo` entrypoints may fail at runtime until source is updated.
+
+7. Public API export list drift (`MathShape`)
+   - `__init__.py` imports `MathShape` at package root.
+   - `__all__` currently omits `MathShape`.
+   - Effect: direct import works, but wildcard import will not include `MathShape`.
+
 Drift resolved in this docs pass
 --------------------------------
 
 - DAE docs were stale relative to current source.
   - Current source now accepts/returns `Material` in `dae_loader.get_dae` model index `5`.
   - Updated docs now reflect parity with `obj_loader` and `Renderer3D.add_obj` model contracts.
+- Previously orphaned demo module coverage was added.
+   - `Demo/silly_skull.py` behavior and current mismatch status are now documented in `docs/demo.md`.
+- Newly added source module `math_shape.py` is now documented.
+   - Added `docs/math_shape.md` and wired API/navigation links.
 
 Files updated in this correction pass
 -------------------------------------
@@ -83,6 +99,13 @@ Files updated in this correction pass
 - `docs/usage.md`
 - `docs/video_renderer.md`
 - `docs/audit_report.md`
+- `docs/demo.md`
+- `docs/math_shape.md`
+- `docs/tutorials.md`
+- `docs/physics.md`
+- `docs/index.md`
+- `docs/shapes.md`
+- `mkdocs.yml`
 
 Recommended remediation sequence
 -------------------------------

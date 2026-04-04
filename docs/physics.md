@@ -48,11 +48,16 @@ Example
 ```python
 from aiden3drenderer import physics, Renderer3D
 
+renderer = Renderer3D(width=900, height=700, title='Physics Sandbox')
 handler = physics.PhysicsObjectHandler()
 plane = handler.add_plane(renderer, (0,-1,0), (0,0,0), (200,200,200), size=20, grid_size=20)
 ball = physics.ShapePhysicsObject(renderer, 'sphere', (0,0,0), (255,0,0), size=1, mass=1.0, grid_size=8)
 handler.add_shape(ball)
 
-# every frame:
-handler.handle_shapes()
+while True:
+	ball.add_forces((0, -0.18, 0))
+	handler.handle_shapes()
+	renderer.loopable_run()
 ```
+
+Note: current source has a known `loopable_run()` QUIT-event bug; if you need stable window-close behavior, use `run()` based integration until that source path is fixed.

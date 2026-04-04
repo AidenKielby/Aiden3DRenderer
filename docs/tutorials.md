@@ -28,6 +28,8 @@ while True:
     renderer.loopable_run()
 ```
 
+Current caveat: in the present source, the `QUIT` event path inside `loopable_run()` can raise `NameError`. If you need robust close handling, prefer `renderer.run()` until that path is fixed.
+
 Load and display an OBJ
 
 ```python
@@ -43,6 +45,28 @@ renderer.add_obj(obj)
 renderer.run()
 ```
 
+Register and render an equation-driven shape
+
+```python
+import pygame
+from aiden3drenderer import Renderer3D, MathShape
+
+MathShape(
+    name='math_waves',
+    pygame_key=pygame.K_v,
+    function='sin(x*0.3 + t)*2 + cos(z*0.3 + t)*2',
+    color=(140, 220, 255),
+    grid_size=32,
+    is_animated=True,
+)
+
+renderer = Renderer3D(width=1000, height=700)
+renderer.set_starting_shape('math_waves')
+renderer.run()
+```
+
+For implicit equations (functions that include `y` and no `=`), tune `y_range` and `y_resolution` carefully to control quality and runtime.
+
 Add an `Entity` with gravity
 
 ```python
@@ -53,12 +77,8 @@ mat = Material('entity_mat', './assets/alloy_forge_block.png', texture_index=0)
 obj = obj_loader.get_obj('./assets/alloy_forge_block.obj', material=mat)
 entity = Entity(obj, renderer)
 entity.toggle_gravity()
-renderer.entities.append(entity)
-
-while True:
-    for e in renderer.entities:
-        e.update()
-    renderer.loopable_run()
+renderer.add_entity(entity)
+renderer.run()
 ```
 
 Use the GPU rasterizer (when available)
