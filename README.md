@@ -366,6 +366,14 @@ Created by Aiden.
 
 Some procedural terrains, and most documentation was AI-assisted; core renderer, projection pipeline, camera, and packaging work are authored manually.
 
+### Libraries Used:
+- pygame (Main Window)
+- numpy (Accelerated Math)
+- opencv-python (Video Renderer)
+- moderngl (Compute Shaders)
+- pillow (Texture Loading)
+- lxml (DAE loading)
+
 ## License
 
 MIT
