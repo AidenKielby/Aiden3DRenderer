@@ -29,7 +29,7 @@ If you are learning, tinkering, or teaching with this repo, that is exactly what
 
 - **Math/CS students** who want to visualize 3D functions by writing one Python function.
 - **Python learners** who want a visual project with instant feedback instead of only terminal output.
-- **Aspiring graphics developers** who want to write a first GLSL shader with a plug-and-play setup.
+- **Aspiring graphics developers** who want to write a first GLSL (OpenGL Shader Lanuage) shader with a plug-and-play setup.
 
 ## Gallery
 
