@@ -34,17 +34,27 @@ jobs:
       - name: Generate version tag
         id: version
         run: |
-          LATEST_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || echo "v0.0.0")
+          set -euo pipefail
+      
+          LATEST_TAG="$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
+          if [[ -z "${LATEST_TAG}" ]]; then
+            LATEST_TAG="v0.0.0"
+          fi
           echo "Latest tag: $LATEST_TAG"
-
-          MAJOR=$(echo "$LATEST_TAG" | cut -d. -f1 | tr -d 'v')
-          MINOR=$(echo "$LATEST_TAG" | cut -d. -f2)
-          PATCH=$(echo "$LATEST_TAG" | cut -d. -f3)
-
+      
+          if [[ ! "$LATEST_TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "Tag format invalid: $LATEST_TAG" >&2
+            exit 1
+          fi
+      
+          MAJOR="${BASH_REMATCH[1]}"
+          MINOR="${BASH_REMATCH[2]}"
+          PATCH="${BASH_REMATCH[3]}"
+      
           NEW_PATCH=$((PATCH + 1))
           NEW_TAG="v${MAJOR}.${MINOR}.${NEW_PATCH}"
           NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
-
+      
           echo "new_tag=$NEW_TAG"         >> "$GITHUB_OUTPUT"
           echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
           echo "latest_tag=$LATEST_TAG"   >> "$GITHUB_OUTPUT"
@@ -53,16 +63,37 @@ jobs:
       - name: Bump version in setup.py
         working-directory: Aiden3DRenderer
         run: |
+          set -euo pipefail
           VERSION="${{ steps.version.outputs.new_version }}"
-          sed -i "s/version=\"[0-9]*\.[0-9]*\.[0-9]*\"/version=\"${VERSION}\"/" setup.py
-          echo "Set version to $VERSION"
-          grep 'version=' setup.py
+          echo "Target version: $VERSION"
+      
+          # Replace version=... regardless of quote style/spacing
+          sed -i -E "s/(version\s*=\s*)['\"][^'\"]*['\"]/\\1\"${VERSION}\"/g" setup.py
+      
+          # Verify the file now contains the exact version
+          python - <<'PY'
+          import re, sys
+          data=open("setup.py","r",encoding="utf-8").read()
+          m=re.search(r"version\s*=\s*['\"]([^'\"]+)['\"]", data)
+          if not m:
+            print("ERROR: Could not find version=... in setup.py")
+            sys.exit(1)
+          print("setup.py version is:", m.group(1))
+          if m.group(1).count(".") != 2:
+            print("ERROR: Version is not X.Y.Z:", m.group(1))
+            sys.exit(1)
+          PY
 
       # setup.py reads README.md with open("README.md") which resolves
       # relative to wherever the build runs. Copying it into Aiden3DRenderer/
       # before building satisfies that open() call without touching your repo structure.
       - name: Copy README into package folder for build
         run: cp README.md Aiden3DRenderer/README.md
+
+      - name: Show computed version
+        run: |
+          echo "Computed new_version=${{ steps.version.outputs.new_version }}"
+          python -c "from packaging.version import Version; Version('${{ steps.version.outputs.new_version }}'); print('PEP440 OK')"
 
       - name: Build package
         working-directory: Aiden3DRenderer
