@@ -1,0 +1,103 @@
+name: Version bump required (Addition PRs)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    branches: [main]
+
+jobs:
+  require-version-bump:
+    # Only enforce for Addition branches (matching your release workflow intent)
+    if: startsWith(github.event.pull_request.head.ref, 'Addition')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare version in PR vs main
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="Aiden3DRenderer/setup.py"
+
+          if [ ! -f "$file" ]; then
+            echo "RULE VIOLATION: $file not found in PR branch." >&2
+            exit 1
+          fi
+
+          pr_version="$(python - <<'PY'
+          import re, pathlib
+          data = pathlib.Path("Aiden3DRenderer/setup.py").read_text(encoding="utf-8")
+          m = re.search(r"version\s*=\s*['\"]([^'\"]+)['\"]", data)
+          print(m.group(1).strip() if m else "")
+          PY
+          )"
+
+          if [ -z "$pr_version" ]; then
+            echo "RULE VIOLATION: Could not parse version from PR's $file" >&2
+            exit 1
+          fi
+
+          git fetch origin main
+
+          main_setup_py="$(git show "origin/main:$file")"
+
+          main_version="$(python - <<'PY'
+          import re, subprocess
+          file = "Aiden3DRenderer/setup.py"
+          data = subprocess.check_output(["git", "show", f"origin/main:{file}"], text=True)
+          m = re.search(r"version\s*=\s*['\"]([^'\"]+)['\"]", data)
+          print(m.group(1).strip() if m else "")
+          PY
+          )"
+
+          if [ -z "$main_version" ]; then
+            echo "RULE VIOLATION: Could not parse version from main branch $file" >&2
+            exit 1
+          fi
+
+          if [ "$pr_version" = "$main_version" ]; then
+            echo "RULE VIOLATION: Addition* PRs must bump the version in $file (X.Y.Z)." >&2
+            echo "Fix: update the version string in $file, commit, and push." >&2
+            echo "main version: $main_version" >&2
+            echo "PR version:   $pr_version" >&2
+            exit 1
+          fi
+
+          init_file="Aiden3DRenderer/aiden3drenderer/__init__.py"
+
+          if [ ! -f "$init_file" ]; then
+            echo "RULE VIOLATION: $init_file not found." >&2
+            exit 1
+          fi
+
+          init_version="$(python - <<'PY'
+          import re
+          from pathlib import Path
+          data = Path("Aiden3DRenderer/aiden3drenderer/__init__.py").read_text(encoding="utf-8")
+          m = re.search(r'^__version__\s*=\s*["\']([^"\']+)["\']', data, re.M)
+          print(m.group(1).strip() if m else "")
+          PY
+          )"
+
+          if [ -z "$init_version" ]; then
+            echo "RULE VIOLATION: Could not parse __version__ from $init_file" >&2
+            exit 1
+          fi
+
+          if [ "$init_version" != "$pr_version" ]; then
+            echo "RULE VIOLATION: Version mismatch." >&2
+            echo "setup.py version:     $pr_version" >&2
+            echo "__init__.py version:  $init_version" >&2
+            echo "Fix: make them identical (recommended: make setup.py read __version__)." >&2
+            exit 1
+          fi
+
+          echo "OK: Version bumped (main: $main_version -> PR: $pr_version)"
