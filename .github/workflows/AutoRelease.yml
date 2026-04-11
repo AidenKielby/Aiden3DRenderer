@@ -154,7 +154,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git tag "$TAG"
-          git push origin "refs/tags/$TAG
+          git push origin "refs/tags/$TAG"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
