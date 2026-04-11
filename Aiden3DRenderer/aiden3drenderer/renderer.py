@@ -801,6 +801,11 @@ class Renderer3D:
         input_tetxure = self.output_tex
         output_texture = self.alt
 
+        try:
+            self.output_tex.use(location=3)
+        except Exception:
+            pass
+
         # Ensure we start with a clean output texture for shader chaining.
         try:
             output_texture.write(self._output_clear_rgba.tobytes())
@@ -893,7 +898,7 @@ class Renderer3D:
                 groups_x = max(1, (self.rasterization_size[0] + 15) // 16)
                 groups_y = max(1, (self.rasterization_size[1] + 15) // 16)
                 shader.compute_shader.run(groups_x, groups_y, 1)
-                if self.disable_finish_call:
+                if not self.disable_finish_call:
                     try:
                         self.ctx.finish()
                     except Exception:
@@ -1650,11 +1655,24 @@ class Renderer3D:
             self.alt.write(self._output_clear_rgba.tobytes())
             self.compute_shader.run((self.rasterization_size[0] + 15) // 16, (self.rasterization_size[1] + 15) // 16)
 
+            # Keep readback deterministic unless explicitly disabled.
+            if not self.disable_finish_call:
+                try:
+                    self.ctx.finish()
+                except Exception:
+                    pass
+
             try:
                 # n is number of triangles processed
                 self.run_compute_shaders(n)
             except Exception:
                 pass
+
+            if not self.disable_finish_call:
+                try:
+                    self.ctx.finish()
+                except Exception:
+                    pass
     
             rw, rh = self.rasterization_size
             raw_data = self.output_tex.read()
