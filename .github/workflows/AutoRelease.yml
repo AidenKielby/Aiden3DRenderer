@@ -31,57 +31,46 @@ jobs:
       - name: Install build tools
         run: pip install build twine
 
-      - name: Generate version tag
+      - name: Generate version from setup.py (increment patch)
         id: version
-        run: |
-          set -euo pipefail
-      
-          LATEST_TAG="$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
-          if [[ -z "${LATEST_TAG}" ]]; then
-            LATEST_TAG="v0.0.0"
-          fi
-          echo "Latest tag: $LATEST_TAG"
-      
-          if [[ ! "$LATEST_TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-            echo "Tag format invalid: $LATEST_TAG" >&2
-            exit 1
-          fi
-      
-          MAJOR="${BASH_REMATCH[1]}"
-          MINOR="${BASH_REMATCH[2]}"
-          PATCH="${BASH_REMATCH[3]}"
-      
-          NEW_PATCH=$((PATCH + 1))
-          NEW_TAG="v${MAJOR}.${MINOR}.${NEW_PATCH}"
-          NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
-      
-          echo "new_tag=$NEW_TAG"         >> "$GITHUB_OUTPUT"
-          echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
-          echo "latest_tag=$LATEST_TAG"   >> "$GITHUB_OUTPUT"
-          echo "New version will be: $NEW_TAG"
-
-      - name: Bump version in setup.py
         working-directory: Aiden3DRenderer
         run: |
           set -euo pipefail
-          VERSION="${{ steps.version.outputs.new_version }}"
-          echo "Target version: $VERSION"
-      
-          # Replace version=... regardless of quote style/spacing
-          sed -i -E "s/(version\s*=\s*)['\"][^'\"]*['\"]/\\1\"${VERSION}\"/g" setup.py
-      
-          # Verify the file now contains the exact version
           python - <<'PY'
-          import re, sys
-          data=open("setup.py","r",encoding="utf-8").read()
-          m=re.search(r"version\s*=\s*['\"]([^'\"]+)['\"]", data)
+          import os, re
+          from pathlib import Path
+      
+          setup_path = Path("setup.py")
+          data = setup_path.read_text(encoding="utf-8")
+      
+          m = re.search(r'version\s*=\s*[\'"]([^\'"]+)[\'"]', data)
           if not m:
-            print("ERROR: Could not find version=... in setup.py")
-            sys.exit(1)
-          print("setup.py version is:", m.group(1))
-          if m.group(1).count(".") != 2:
-            print("ERROR: Version is not X.Y.Z:", m.group(1))
-            sys.exit(1)
+            raise SystemExit("ERROR: Could not find version=... in setup.py")
+      
+          old_version = m.group(1).strip()
+          parts = old_version.split(".")
+          if len(parts) != 3 or not all(p.isdigit() for p in parts):
+            raise SystemExit(f"ERROR: Version in setup.py is not X.Y.Z numeric: {old_version}")
+      
+          major, minor, patch = map(int, parts)
+          new_version = f"{major}.{minor}.{patch + 1}"
+      
+          new_data = re.sub(
+            r'(version\s*=\s*)[\'"][^\'"]+[\'"]',
+            r'\1"' + new_version + r'"',
+            data,
+            count=1
+          )
+          setup_path.write_text(new_data, encoding="utf-8")
+      
+          out_path = Path(os.environ["GITHUB_OUTPUT"])
+          with out_path.open("a", encoding="utf-8") as f:
+            f.write(f"old_version={old_version}\n")
+            f.write(f"new_version={new_version}\n")
+            f.write(f"new_tag=v{new_version}\n")
+            f.write(f"latest_tag=v{old_version}\n")
+      
+          print(f"Bumped setup.py: {old_version} -> {new_version}")
           PY
 
       # setup.py reads README.md with open("README.md") which resolves
@@ -89,6 +78,9 @@ jobs:
       # before building satisfies that open() call without touching your repo structure.
       - name: Copy README into package folder for build
         run: cp README.md Aiden3DRenderer/README.md
+
+      - name: Install build tools
+        run: pip install build twine packaging
 
       - name: Show computed version
         run: |
@@ -135,6 +127,17 @@ jobs:
 
           **Full Changelog:** https://github.com/${{ github.repository }}/compare/${{ steps.version.outputs.latest_tag }}...${{ steps.version.outputs.new_tag }}
           EOF
+      - name: Commit version bump and tag
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+          git add Aiden3DRenderer/setup.py
+          git commit -m "Bump version to ${{ steps.version.outputs.new_version }}" || echo "No changes to commit"
+      
+          git tag "${{ steps.version.outputs.new_tag }}"
+          git push origin HEAD:main --tags
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
