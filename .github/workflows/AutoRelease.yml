@@ -1,0 +1,117 @@
+name: Auto Release on Addition Merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  create-release:
+    # Only run if the PR was merged and came from an Addition branch
+    if: |
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'Addition')
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Generate version tag
+        id: version
+        run: |
+          LATEST_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || echo "v0.0.0")
+          echo "Latest tag: $LATEST_TAG"
+
+          MAJOR=$(echo "$LATEST_TAG" | cut -d. -f1 | tr -d 'v')
+          MINOR=$(echo "$LATEST_TAG" | cut -d. -f2)
+          PATCH=$(echo "$LATEST_TAG" | cut -d. -f3)
+
+          NEW_PATCH=$((PATCH + 1))
+          NEW_TAG="v${MAJOR}.${MINOR}.${NEW_PATCH}"
+          NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+
+          echo "new_tag=$NEW_TAG"         >> "$GITHUB_OUTPUT"
+          echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=$LATEST_TAG"   >> "$GITHUB_OUTPUT"
+          echo "New version will be: $NEW_TAG"
+
+      - name: Bump version in setup.py
+        working-directory: Aiden3DRenderer
+        run: |
+          VERSION="${{ steps.version.outputs.new_version }}"
+          sed -i "s/version=\"[0-9]*\.[0-9]*\.[0-9]*\"/version=\"${VERSION}\"/" setup.py
+          echo "Set version to $VERSION"
+          grep 'version=' setup.py
+
+      # setup.py reads README.md with open("README.md") which resolves
+      # relative to wherever the build runs. Copying it into Aiden3DRenderer/
+      # before building satisfies that open() call without touching your repo structure.
+      - name: Copy README into package folder for build
+        run: cp README.md Aiden3DRenderer/README.md
+
+      - name: Build package
+        working-directory: Aiden3DRenderer
+        run: python -m build
+
+      - name: Check distribution
+        working-directory: Aiden3DRenderer
+        run: twine check dist/*
+
+      - name: Publish to PyPI
+        working-directory: Aiden3DRenderer
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: twine upload dist/*
+
+      - name: Build release notes
+        run: |
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+          MERGE_SHA="${{ github.event.pull_request.merge_commit_sha }}"
+          VERSION="${{ steps.version.outputs.new_version }}"
+
+          cat > release_notes.md << EOF
+          ## What's Changed
+
+          **Branch:** \`${BRANCH}\`
+          **PR:** [#${PR_NUMBER}](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}) — ${PR_TITLE}
+          **Author:** @${PR_AUTHOR}
+          **Commit:** \`${MERGE_SHA:0:7}\`
+
+          ## Install
+
+          \`\`\`
+          pip install aiden3drenderer==${VERSION}
+          \`\`\`
+
+          **Full Changelog:** https://github.com/${{ github.repository }}/compare/${{ steps.version.outputs.latest_tag }}...${{ steps.version.outputs.new_tag }}
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.new_tag }}
+          name: Release ${{ steps.version.outputs.new_tag }}
+          body_path: release_notes.md
+          files: Aiden3DRenderer/dist/*
+          draft: false
+          prerelease: false
+          make_latest: true

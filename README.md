@@ -3,7 +3,6 @@
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/aiden3drenderer?period=total&units=INTERNATIONAL_SYSTEM&left_color=GRAY&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/aiden3drenderer)
 [![PyPI version](https://img.shields.io/pypi/v/aiden3drenderer?color=green)](https://pypi.org/project/aiden3drenderer/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/aiden3drenderer)](https://pypi.org/project/aiden3drenderer/)
-![Per Month](https://img.shields.io/pypi/dm/aiden3drenderer)
 [![License: MIT](https://img.shields.io/pypi/l/aiden3drenderer)](https://github.com/AidenKielby/3D-mesh-Renderer/blob/main/LICENSE)
 [![PyPI status](https://img.shields.io/pypi/status/aiden3drenderer)](https://pypi.org/project/aiden3drenderer/)
 [![GitHub stars](https://img.shields.io/github/stars/AidenKielby/3D-mesh-Renderer?style=social)](https://github.com/AidenKielby/3D-mesh-Renderer/stargazers)
@@ -30,7 +29,7 @@ If you are learning, tinkering, or teaching with this repo, that is exactly what
 
 - **Math/CS students** who want to visualize 3D functions by writing one Python function.
 - **Python learners** who want a visual project with instant feedback instead of only terminal output.
-- **Aspiring graphics developers** who want to write a first GLSL shader with a plug-and-play setup.
+- **Aspiring graphics developers** who want to write a first GLSL (OpenGL Shader Lanuage) shader with a plug-and-play setup.
 
 ## Gallery
 
@@ -366,6 +365,14 @@ python -m twine upload dist/*
 Created by Aiden.
 
 Some procedural terrains, and most documentation was AI-assisted; core renderer, projection pipeline, camera, and packaging work are authored manually.
+
+### Libraries Used:
+- pygame (Main Window)
+- numpy (Accelerated Math)
+- opencv-python (Video Renderer)
+- moderngl (Compute Shaders)
+- pillow (Texture Loading)
+- lxml (DAE loading)
 
 ## License
 
