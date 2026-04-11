@@ -31,46 +31,47 @@ jobs:
       - name: Install build tools
         run: pip install build twine
 
-      - name: Generate version from setup.py (increment patch)
+      - name: Read version from setup.py (no auto-bump)
         id: version
         working-directory: Aiden3DRenderer
         run: |
           set -euo pipefail
           python - <<'PY'
-          import os, re
+          import os, re, subprocess
           from pathlib import Path
-      
+
           setup_path = Path("setup.py")
           data = setup_path.read_text(encoding="utf-8")
-      
+
           m = re.search(r'version\s*=\s*[\'"]([^\'"]+)[\'"]', data)
           if not m:
-            raise SystemExit("ERROR: Could not find version=... in setup.py")
-      
-          old_version = m.group(1).strip()
-          parts = old_version.split(".")
+            raise SystemExit("ERROR: Could not find version=... in Aiden3DRenderer/setup.py")
+
+          version = m.group(1).strip()
+          parts = version.split(".")
           if len(parts) != 3 or not all(p.isdigit() for p in parts):
-            raise SystemExit(f"ERROR: Version in setup.py is not X.Y.Z numeric: {old_version}")
-      
-          major, minor, patch = map(int, parts)
-          new_version = f"{major}.{minor}.{patch + 1}"
-      
-          new_data = re.sub(
-            r'(version\s*=\s*)[\'"][^\'"]+[\'"]',
-            r'\1"' + new_version + r'"',
-            data,
-            count=1
-          )
-          setup_path.write_text(new_data, encoding="utf-8")
-      
+            raise SystemExit(f"ERROR: Version in setup.py must be numeric X.Y.Z (example: 1.2.3). Found: {version}")
+
+          # Find previous tag for changelog link (optional)
+          latest_tag = ""
+          try:
+            latest_tag = subprocess.check_output(
+              ["git", "describe", "--tags", "--abbrev=0"],
+              stderr=subprocess.DEVNULL,
+              text=True
+            ).strip()
+          except Exception:
+            latest_tag = ""
+
+          new_tag = f"v{version}"
+
           out_path = Path(os.environ["GITHUB_OUTPUT"])
           with out_path.open("a", encoding="utf-8") as f:
-            f.write(f"old_version={old_version}\n")
-            f.write(f"new_version={new_version}\n")
-            f.write(f"new_tag=v{new_version}\n")
-            f.write(f"latest_tag=v{old_version}\n")
-      
-          print(f"Bumped setup.py: {old_version} -> {new_version}")
+            f.write(f"new_version={version}\n")
+            f.write(f"new_tag={new_tag}\n")
+            f.write(f"latest_tag={latest_tag}\n")
+
+          print(f"Using version from setup.py: {version} (tag {new_tag})")
           PY
 
       # setup.py reads README.md with open("README.md") which resolves
@@ -78,9 +79,6 @@ jobs:
       # before building satisfies that open() call without touching your repo structure.
       - name: Copy README into package folder for build
         run: cp README.md Aiden3DRenderer/README.md
-
-      - name: Install build tools
-        run: pip install build twine packaging
 
       - name: Show computed version
         run: |
@@ -125,19 +123,38 @@ jobs:
           pip install aiden3drenderer==${VERSION}
           \`\`\`
 
-          **Full Changelog:** https://github.com/${{ github.repository }}/compare/${{ steps.version.outputs.latest_tag }}...${{ steps.version.outputs.new_tag }}
+          LATEST="${{ steps.version.outputs.latest_tag }}"
+          NEW="${{ steps.version.outputs.new_tag }}"
+          
+          if [ -n "$LATEST" ]; then
+            CHANGELOG_URL="https://github.com/${{ github.repository }}/compare/${LATEST}...${NEW}"
+          else
+            CHANGELOG_URL="https://github.com/${{ github.repository }}/releases/tag/${NEW}"
+          fi
+
+          **Full Changelog:** ${CHANGELOG_URL}
           EOF
-      - name: Commit version bump and tag
+
+      - name: Create and push tag (no pushes to main)
         run: |
           set -euo pipefail
+          TAG="${{ steps.version.outputs.new_tag }}"
+
+          # Fail clearly if tag already exists
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "ERROR: Tag $TAG already exists locally. Bump version in setup.py." >&2
+            exit 1
+          fi
+          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+            echo "ERROR: Tag $TAG already exists on origin. Bump version in setup.py." >&2
+            exit 1
+          fi
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-      
-          git add Aiden3DRenderer/setup.py
-          git commit -m "Bump version to ${{ steps.version.outputs.new_version }}" || echo "No changes to commit"
-      
-          git tag "${{ steps.version.outputs.new_tag }}"
-          git push origin HEAD:main --tags
+
+          git tag "$TAG"
+          git push origin "refs/tags/$TAG
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
