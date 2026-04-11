@@ -11,6 +11,11 @@ jobs:
     if: startsWith(github.event.pull_request.head.ref, 'Addition')
     runs-on: ubuntu-latest
     steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      
       - name: Checkout PR
         uses: actions/checkout@v4
         with:
@@ -60,6 +65,35 @@ jobs:
             echo "Fix: update the version string in $file, commit, and push." >&2
             echo "main version: $main_version" >&2
             echo "PR version:   $pr_version" >&2
+            exit 1
+          fi
+
+          init_file="Aiden3DRenderer/aiden3drenderer/__init__.py"
+
+          if [ ! -f "$init_file" ]; then
+            echo "RULE VIOLATION: $init_file not found." >&2
+            exit 1
+          fi
+
+          init_version="$(python - <<'PY'
+          import re
+          from pathlib import Path
+          data = Path("Aiden3DRenderer/aiden3drenderer/__init__.py").read_text(encoding="utf-8")
+          m = re.search(r'^__version__\s*=\s*["\']([^"\']+)["\']', data, re.M)
+          print(m.group(1).strip() if m else "")
+          PY
+          )"
+
+          if [ -z "$init_version" ]; then
+            echo "RULE VIOLATION: Could not parse __version__ from $init_file" >&2
+            exit 1
+          fi
+
+          if [ "$init_version" != "$pr_version" ]; then
+            echo "RULE VIOLATION: Version mismatch." >&2
+            echo "setup.py version:     $pr_version" >&2
+            echo "__init__.py version:  $init_version" >&2
+            echo "Fix: make them identical (recommended: make setup.py read __version__)." >&2
             exit 1
           fi
 
