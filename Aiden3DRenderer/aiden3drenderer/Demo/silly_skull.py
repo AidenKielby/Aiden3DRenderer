@@ -1,7 +1,7 @@
 import math
 import numpy as np
 from importlib.resources import files, as_file
-from aiden3drenderer import Renderer3D, obj_loader, renderer_type, Entity, bounding_box, CustomShader
+from aiden3drenderer import Renderer3D, obj_loader, renderer_type, Entity, bounding_box, CustomShader, Material
 
 skull_script = """
 dist_to_player = (
@@ -75,7 +75,9 @@ def demo_inv():
          as_file(files(demo_pkg).joinpath('skull.png')) as skull_png_path, \
          as_file(files(demo_pkg).joinpath('damage_image.png')) as damage_image_path:
 
-        obj = obj_loader.get_obj(str(skull_obj_path), renderer.add_texture_for_raster(str(skull_png_path)), scale=4)
+        skull_material = Material("skull_mat", skull_png_path, None)
+
+        obj = obj_loader.get_obj(str(skull_obj_path), skull_material, scale=4)
 
         skull_entity = Entity(obj, renderer, bounding_box=bounding_box.get_bounding_box(obj[0]))
         skull_entity.add_script(skull_script)
@@ -117,7 +119,9 @@ def demo():
          as_file(files(demo_pkg).joinpath('skull.png')) as skull_png_path, \
          as_file(files(demo_pkg).joinpath('damage_image.png')) as damage_image_path:
 
-        obj = obj_loader.get_obj(str(skull_obj_path), renderer.add_texture_for_raster(str(skull_png_path)), scale=4)
+        skull_material = Material("skull_mat", skull_png_path, None)
+
+        obj = obj_loader.get_obj(str(skull_obj_path), skull_material, scale=4)
 
         skull_entity = Entity(obj, renderer, bounding_box=bounding_box.get_bounding_box(obj[0]))
         skull_entity.add_script(skull_script)
@@ -150,8 +154,9 @@ def demo_mac():
     demo_pkg = 'aiden3drenderer.Demo'
     with as_file(files(demo_pkg).joinpath('skull.obj')) as skull_obj_path, \
          as_file(files(demo_pkg).joinpath('skull.png')) as skull_png_path:
+        skull_material = Material("skull_mat", skull_png_path, None)
 
-        obj = obj_loader.get_obj(str(skull_obj_path), renderer.add_texture_for_raster(str(skull_png_path)), scale=4)
+        obj = obj_loader.get_obj(str(skull_obj_path), skull_material, scale=4)
 
         skull_entity = Entity(obj, renderer, bounding_box=bounding_box.get_bounding_box(obj[0]))
         skull_entity.add_script(skull_script)

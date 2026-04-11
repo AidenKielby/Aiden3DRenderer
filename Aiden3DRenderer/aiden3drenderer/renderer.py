@@ -801,6 +801,11 @@ class Renderer3D:
         input_tetxure = self.output_tex
         output_texture = self.alt
 
+        try:
+            self.output_tex.use(location=3)
+        except Exception:
+            pass
+
         # Ensure we start with a clean output texture for shader chaining.
         try:
             output_texture.write(self._output_clear_rgba.tobytes())
@@ -893,7 +898,7 @@ class Renderer3D:
                 groups_x = max(1, (self.rasterization_size[0] + 15) // 16)
                 groups_y = max(1, (self.rasterization_size[1] + 15) // 16)
                 shader.compute_shader.run(groups_x, groups_y, 1)
-                if self.disable_finish_call:
+                if not self.disable_finish_call:
                     try:
                         self.ctx.finish()
                     except Exception:
@@ -1408,37 +1413,69 @@ class Renderer3D:
         return (near - v_in[2]) / denom
     
     def clip_triangle_near(self, verts_3d, uvs, near=0.1):
-
-        inside  = [(v, uv) for v, uv in zip(verts_3d, uvs) if v[2] >= near]
-        outside = [(v, uv) for v, uv in zip(verts_3d, uvs) if v[2] <  near]
-
-        if len(inside) == 3:
-            return [(verts_3d, uvs)]
-
-        if len(inside) == 0:
+        if verts_3d is None or uvs is None or len(verts_3d) != 3 or len(uvs) != 3:
             return []
 
-        if len(inside) == 1:
-            v0, uv0 = inside[0]
-            v1, uv1 = outside[0]
-            v2, uv2 = outside[1]
+        def winding(v0, v1, v2):
+            return (v1[0] - v0[0]) * (v2[1] - v0[1]) - (v1[1] - v0[1]) * (v2[0] - v0[0])
+
+        def orient_like_source(tri_verts, tri_uvs, source_w):
+            tri_w = winding(tri_verts[0], tri_verts[1], tri_verts[2])
+            if abs(source_w) > 1e-12 and tri_w * source_w < 0:
+                tri_verts = [tri_verts[0], tri_verts[2], tri_verts[1]]
+                tri_uvs = [tri_uvs[0], tri_uvs[2], tri_uvs[1]]
+            return tri_verts, tri_uvs
+
+        source_w = winding(verts_3d[0], verts_3d[1], verts_3d[2])
+
+        inside_idx = [i for i, v in enumerate(verts_3d) if v[2] >= near]
+        outside_idx = [i for i, v in enumerate(verts_3d) if v[2] < near]
+
+        if len(inside_idx) == 3:
+            return [(verts_3d, uvs)]
+
+        if len(inside_idx) == 0:
+            return []
+
+        if len(inside_idx) == 1:
+            i0 = inside_idx[0]
+            o0, o1 = outside_idx[0], outside_idx[1]
+
+            v0, uv0 = verts_3d[i0], uvs[i0]
+            v1, uv1 = verts_3d[o0], uvs[o0]
+            v2, uv2 = verts_3d[o1], uvs[o1]
+
             t1 = self.t_near(v0, v1, near)
             t2 = self.t_near(v0, v2, near)
-            p1 = self.interp_vert(v0, v1, t1);  puv1 = self.interp_uv(uv0, uv1, t1)
-            p2 = self.interp_vert(v0, v2, t2);  puv2 = self.interp_uv(uv0, uv2, t2)
-            return [([v0, p1, p2], [uv0, puv1, puv2])]
 
-        if len(inside) == 2:
-            v0, uv0 = inside[0]
-            v1, uv1 = inside[1]
-            v2, uv2 = outside[0]
+            p1 = self.interp_vert(v0, v1, t1)
+            puv1 = self.interp_uv(uv0, uv1, t1)
+            p2 = self.interp_vert(v0, v2, t2)
+            puv2 = self.interp_uv(uv0, uv2, t2)
+
+            tri_verts, tri_uvs = orient_like_source([v0, p1, p2], [uv0, puv1, puv2], source_w)
+            return [(tri_verts, tri_uvs)]
+
+        if len(inside_idx) == 2:
+            i0, i1 = inside_idx[0], inside_idx[1]
+            o = outside_idx[0]
+
+            v0, uv0 = verts_3d[i0], uvs[i0]
+            v1, uv1 = verts_3d[i1], uvs[i1]
+            v2, uv2 = verts_3d[o], uvs[o]
+
             t1 = self.t_near(v0, v2, near)
             t2 = self.t_near(v1, v2, near)
-            p1 = self.interp_vert(v0, v2, t1);  puv1 = self.interp_uv(uv0, uv2, t1)
-            p2 = self.interp_vert(v1, v2, t2);  puv2 = self.interp_uv(uv1, uv2, t2)
-            tri1 = ([v0, v1, p1], [uv0, uv1, puv1])
-            tri2 = ([v1, p2, p1], [uv1, puv2, puv1])
-            return [tri1, tri2]
+
+            p1 = self.interp_vert(v0, v2, t1)
+            puv1 = self.interp_uv(uv0, uv2, t1)
+            p2 = self.interp_vert(v1, v2, t2)
+            puv2 = self.interp_uv(uv1, uv2, t2)
+
+            tri1_verts, tri1_uvs = orient_like_source([v0, v1, p1], [uv0, uv1, puv1], source_w)
+            tri2_verts, tri2_uvs = orient_like_source([v1, p2, p1], [uv1, puv2, puv1], source_w)
+
+            return [(tri1_verts, tri1_uvs), (tri2_verts, tri2_uvs)]
 
         return []
     
@@ -1650,11 +1687,24 @@ class Renderer3D:
             self.alt.write(self._output_clear_rgba.tobytes())
             self.compute_shader.run((self.rasterization_size[0] + 15) // 16, (self.rasterization_size[1] + 15) // 16)
 
+            # Keep readback deterministic unless explicitly disabled.
+            if not self.disable_finish_call:
+                try:
+                    self.ctx.finish()
+                except Exception:
+                    pass
+
             try:
                 # n is number of triangles processed
                 self.run_compute_shaders(n)
             except Exception:
                 pass
+
+            if not self.disable_finish_call:
+                try:
+                    self.ctx.finish()
+                except Exception:
+                    pass
     
             rw, rh = self.rasterization_size
             raw_data = self.output_tex.read()
