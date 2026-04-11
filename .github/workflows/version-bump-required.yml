@@ -47,12 +47,15 @@ jobs:
 
           git fetch origin main
 
-          main_version="$(git show origin/main:$file | python - <<'PY'
+          main_setup_py="$(git show "origin/main:$file")"
+
+          main_version="$(python - <<'PY'
           import re, sys
           data = sys.stdin.read()
           m = re.search(r"version\s*=\s*['\"]([^'\"]+)['\"]", data)
           print(m.group(1).strip() if m else "")
           PY
+          <<<"$main_setup_py"
           )"
 
           if [ -z "$main_version" ]; then
