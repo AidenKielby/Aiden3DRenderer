@@ -108,33 +108,32 @@ jobs:
           PR_AUTHOR="${{ github.event.pull_request.user.login }}"
           MERGE_SHA="${{ github.event.pull_request.merge_commit_sha }}"
           VERSION="${{ steps.version.outputs.new_version }}"
-
-          cat > release_notes.md << EOF
-          ## What's Changed
-
-          **Branch:** \`${BRANCH}\`
-          **PR:** [#${PR_NUMBER}](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}) — ${PR_TITLE}
-          **Author:** @${PR_AUTHOR}
-          **Commit:** \`${MERGE_SHA:0:7}\`
-
-          ## Install
-
-          \`\`\`
-          pip install aiden3drenderer==${VERSION}
-          \`\`\`
-
-          LATEST="${{ steps.version.outputs.latest_tag }}"
           NEW="${{ steps.version.outputs.new_tag }}"
-          
-          if [ -n "$LATEST" ]; then
+          LATEST="${{ steps.version.outputs.latest_tag }}"
+      
+          # Only use compare URL if a previous tag actually exists on the remote
+          if git ls-remote --tags origin "refs/tags/${LATEST}" | grep -q . && [ -n "$LATEST" ]; then
             CHANGELOG_URL="https://github.com/${{ github.repository }}/compare/${LATEST}...${NEW}"
           else
             CHANGELOG_URL="https://github.com/${{ github.repository }}/releases/tag/${NEW}"
           fi
-
+      
+          cat > release_notes.md << EOF
+          ## What's Changed
+      
+          **Branch:** \`${BRANCH}\`
+          **PR:** [#${PR_NUMBER}](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}) — ${PR_TITLE}
+          **Author:** @${PR_AUTHOR}
+          **Commit:** \`${MERGE_SHA:0:7}\`
+      
+          ## Install
+      
+          \`\`\`
+          pip install aiden3drenderer==${VERSION}
+          \`\`\`
+      
           **Full Changelog:** ${CHANGELOG_URL}
           EOF
-
       - name: Create and push tag (no pushes to main)
         run: |
           set -euo pipefail
