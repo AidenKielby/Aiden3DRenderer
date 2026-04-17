@@ -4,10 +4,42 @@ from shader_type import ShaderType
 from elements import getPixelAt, writePixelAt, equals
 
 connections = {}
+node_vars = {}
 link_map = {}
 node_counter = 0
 
 all_elements = [getPixelAt, writePixelAt, equals]
+
+final_shader = """
+
+"""
+
+shader_before_main = """
+#version 430
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(rgba32f, binding = 0) uniform image2D destTex;
+uniform sampler2D srcTex;
+"""
+
+shader_inside_main = """
+ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy);
+"""
+
+def get_unique_name(placeholder, taken_names):
+    if placeholder not in taken_names:
+        return placeholder
+    
+    counter = 1
+    new_name = f"{placeholder}{counter}"
+    
+    while new_name in taken_names:
+        counter += 1
+        new_name = f"{placeholder}{counter}"
+        
+    return new_name
+
+taken_variable_names = ["srcTex", "destTex", "pixel_coords"]
 
 def add_element_node(element):
     global node_counter
@@ -24,6 +56,7 @@ def add_element_node(element):
             ptag = f"{ntag}_out_{i}"
             with dpg.node_attribute(tag=ptag, attribute_type=dpg.mvNode_Attr_Output):
                 dpg.add_text(out.value, tag=f"{ptag}_text")
+        
 
 def on_link(sender, app_data):
     src_text = dpg.get_item_children(app_data[0], slot=1)[0]
@@ -54,8 +87,23 @@ def delete_selected_nodes(sender, app_data):
 
 dpg.create_context()
 
+# my better way idea is to have each element have the code/function it aldready has,
+# then when we link the things together, each thing (eg "input1") gets replaced with the actuall connection.
+# in addition, when the thing is created, the "PLACEHOLDER" gets replaced with a unique name, and this unique name gets added tp the var names list
+# the connections dict will change to have the actual varuable names (including type), and it will change from a dict to a list, 
+# because i dont see a need for a key-value pair, i just need a list of all the connections, and then i can loop through that list to generate the shader code.
 def graph_to_shader():
-    print("in progress")
+    global shader_before_main, shader_inside_main
+    for key in connections.keys():
+        if key[1] == 'getPixelAt':
+            shader_inside_main += getPixelAt.function.replace("input1", connections[key][0]).replace("input2", connections[key][1]).replace("PLACEHOLDER", get_unique_name("PLACEHOLDER", taken_variable_names)) + "\n"
+        elif key[1] == 'writePixelAt':
+            shader_inside_main += writePixelAt.function.replace("input1", connections[key][0]).replace("input2", connections[key][1]).replace("PLACEHOLDER", get_unique_name("PLACEHOLDER", taken_variable_names)) + "\n"
+        elif key[1] == 'equals':
+            shader_inside_main += equals.function.replace("input1", connections[key][0]).replace("input2", connections[key][1]).replace("PLACEHOLDER", get_unique_name("PLACEHOLDER", taken_variable_names)) + "\n"
+    
+    final_shader = shader_before_main + "\nvoid main() {\n" + shader_inside_main + "\n}"
+    print(final_shader)
 
 with dpg.window(tag="win"):
     with dpg.group(horizontal=True):
@@ -87,15 +135,15 @@ with dpg.window(tag="win"):
         with dpg.node_editor(tag="editor", width=-1, height=-1,
                              callback=on_link, delink_callback=on_delink):
 
-            with dpg.node(label="Source Image", pos=(50, 100)):
+            with dpg.node(label="srcTex", pos=(50, 100)):
                 with dpg.node_attribute(tag="out_a", attribute_type=dpg.mvNode_Attr_Output):
                     dpg.add_text(ShaderType.SAMPLER2D.value, tag="out_a_text")
 
-            with dpg.node(label="Pixel Pos", pos=(50, 170)):
+            with dpg.node(label="pixel_coords", pos=(50, 170)):
                 with dpg.node_attribute(tag="out_b", attribute_type=dpg.mvNode_Attr_Output):
                     dpg.add_text(ShaderType.VEC2.value, tag="out_b_text")
 
-            with dpg.node(label="Output", pos=(300, 135)):
+            with dpg.node(label="destTex", pos=(300, 135)):
                 with dpg.node_attribute(tag="in_a", attribute_type=dpg.mvNode_Attr_Input):
                     dpg.add_text(ShaderType.VEC3.value, tag="in_a_text")
 
