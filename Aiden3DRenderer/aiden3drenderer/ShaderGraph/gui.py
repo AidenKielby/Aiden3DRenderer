@@ -1,14 +1,21 @@
 import dearpygui.dearpygui as dpg
 
+from element import Element, ElementType
 from shader_type import ShaderType
-from elements import getPixelAt, writePixelAt, equals
+import inspect
+import elements
 
-connections = {}
-node_vars = {}
+changes = []
+connections = []
 link_map = {}
-node_counter = 0
+node_counter = 3
 
-all_elements = [getPixelAt, writePixelAt, equals]
+category_headers = {}
+
+all_elements = [
+    obj for name, obj in inspect.getmembers(elements)
+    if isinstance(obj, Element) and name not in ["srcTex", "destTex", "pixel_coords"]
+]
 
 final_shader = """
 
@@ -19,11 +26,9 @@ shader_before_main = """
 layout(local_size_x = 16, local_size_y = 16) in;
 
 layout(rgba32f, binding = 0) uniform image2D destTex;
-uniform sampler2D srcTex;
 """
 
 shader_inside_main = """
-ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy);
 """
 
 def get_unique_name(placeholder, taken_names):
@@ -41,66 +46,146 @@ def get_unique_name(placeholder, taken_names):
 
 taken_variable_names = ["srcTex", "destTex", "pixel_coords"]
 
-def add_element_node(element):
+def add_element_node(element: Element):
     global node_counter
     node_counter += 1
     ntag = f"node_{node_counter}"
 
-    with dpg.node(label=element.name, parent="editor", pos=(200, 50 + node_counter * 20)):
+    element_function_variable_name = get_unique_name(element.variable_name, taken_variable_names)
+    element.function = element.function.replace("PLACEHOLDER", element_function_variable_name)
+
+    with dpg.node(label=element.name, parent="editor", pos=(200, 50 + node_counter * 20), user_data={"element":element, "conections":[], "index": node_counter-1}):
         for i, inp in enumerate(element.inputs):
             ptag = f"{ntag}_in_{i}"
-            with dpg.node_attribute(tag=ptag, attribute_type=dpg.mvNode_Attr_Input):
-                dpg.add_text(inp.value, tag=f"{ptag}_text")
+            with dpg.node_attribute(
+                tag=ptag,
+                attribute_type=dpg.mvNode_Attr_Input,
+                user_data={"kind": "input", "index": i}
+            ):
+                dpg.add_text(inp.value)
 
         for i, out in enumerate(element.outputs):
             ptag = f"{ntag}_out_{i}"
-            with dpg.node_attribute(tag=ptag, attribute_type=dpg.mvNode_Attr_Output):
-                dpg.add_text(out.value, tag=f"{ptag}_text")
+            with dpg.node_attribute(
+                tag=ptag,
+                attribute_type=dpg.mvNode_Attr_Output,
+                user_data={"kind": "output", "index": i}
+            ):
+                dpg.add_text(out.value)
         
 
-def on_link(sender, app_data):
-    src_text = dpg.get_item_children(app_data[0], slot=1)[0]
-    dst_text = dpg.get_item_children(app_data[1], slot=1)[0]
-    if str(dpg.get_value(src_text)) == str(dpg.get_value(dst_text)):
+def on_link(sender, app_data, user_data):
+    src_attr = app_data[0]
+    dst_attr = app_data[1]
+
+    src_node = dpg.get_item_parent(src_attr)
+    dst_node = dpg.get_item_parent(dst_attr)
+    src_attr_data = dpg.get_item_user_data(src_attr)
+    dst_attr_data = dpg.get_item_user_data(dst_attr)
+
+    src_children = dpg.get_item_children(src_attr, 1)
+    dst_children = dpg.get_item_children(dst_attr, 1)
+
+    if not src_children or not dst_children:
+        return
+
+    src_text_item = src_children[0]
+    dst_text_item = dst_children[0]
+
+    src_text = dpg.get_value(src_text_item)
+    dst_text = dpg.get_value(dst_text_item)
+
+    src_node_data = dpg.get_item_user_data(src_node)
+    dst_node_data = dpg.get_item_user_data(dst_node)
+    
+    dst_index = dst_attr_data["index"]
+
+    if str(src_text == dst_text):
         link_tag = dpg.add_node_link(app_data[0], app_data[1], parent="editor")
         src_node = dpg.get_item_parent(app_data[0])
         dst_node = dpg.get_item_parent(app_data[1])
-        key = (dpg.get_item_label(src_node), dpg.get_item_label(dst_node))
-        connections[key] = dpg.get_value(src_text)
-        link_map[link_tag] = key
+        
+        dst_elm: Element = dst_node_data["element"]
+        src_elm: Element = src_node_data["element"]
+        
+        new_func = src_elm.function.replace("uniform ", "").replace(";", "")
+        src_variable_name = new_func.split(" ")[1]
+        dst_function = dst_elm.function
 
-    print(connections)
+        dst_function1 = dst_function.replace(f"input{dst_index+1}", src_variable_name)
+
+        changes.append([dst_function, dst_function1, dst_elm])
+        connections.append({
+            "src_node": src_node,
+            "dst_node": dst_node,
+            "src_index": src_node_data["index"],
+            "dst_index": dst_node_data["index"]
+        })
+        link_map[link_tag] = len(changes)-1
+
+        dst_elm.function = dst_function1
+
 
 def on_delink(sender, app_data):
     dpg.delete_item(app_data)
     key = link_map.pop(app_data, None)
     if key:
-        connections.pop(key, None)
-
-    print(connections)
+        change = changes[key]
+        elm: Element = change[2]
+        elm.function = change[0]
+        # delete old connections and changes
+        
 
 def delete_selected_nodes(sender, app_data):
     selected_nodes = dpg.get_selected_nodes("editor")
     for node in selected_nodes:
         dpg.delete_item(node)
-        print(f"Deleted node via hotkey: {node}")
 
 dpg.create_context()
 
-# my better way idea is to have each element have the code/function it aldready has,
-# then when we link the things together, each thing (eg "input1") gets replaced with the actuall connection.
-# in addition, when the thing is created, the "PLACEHOLDER" gets replaced with a unique name, and this unique name gets added tp the var names list
-# the connections dict will change to have the actual varuable names (including type), and it will change from a dict to a list, 
-# because i dont see a need for a key-value pair, i just need a list of all the connections, and then i can loop through that list to generate the shader code.
+def get_backward_neighbors(node):
+    return [
+        c["src_node"]
+        for c in connections
+        if c["dst_node"] == node
+    ]
+
+def get_correct_ordering():
+    ordered_list = []
+    queue = []
+    for node in dpg.get_item_children("editor", 1):
+        data = dpg.get_item_user_data(node)
+        
+        if data is None:
+            continue
+        
+        element: Element = data["element"]
+        if element.type == ElementType.OUTPUT_ONLY:
+            queue.append(node)
+
+    while len(queue) > 0:
+        node = queue[0]
+        neighbors = get_backward_neighbors(node)
+        for n in neighbors:
+            queue.append(n)
+        
+        ordered_list.insert(0, dpg.get_item_user_data(node)["element"])
+
+        del queue[0]
+    
+    return ordered_list
+
 def graph_to_shader():
     global shader_before_main, shader_inside_main
-    for key in connections.keys():
-        if key[1] == 'getPixelAt':
-            shader_inside_main += getPixelAt.function.replace("input1", connections[key][0]).replace("input2", connections[key][1]).replace("PLACEHOLDER", get_unique_name("PLACEHOLDER", taken_variable_names)) + "\n"
-        elif key[1] == 'writePixelAt':
-            shader_inside_main += writePixelAt.function.replace("input1", connections[key][0]).replace("input2", connections[key][1]).replace("PLACEHOLDER", get_unique_name("PLACEHOLDER", taken_variable_names)) + "\n"
-        elif key[1] == 'equals':
-            shader_inside_main += equals.function.replace("input1", connections[key][0]).replace("input2", connections[key][1]).replace("PLACEHOLDER", get_unique_name("PLACEHOLDER", taken_variable_names)) + "\n"
+
+    ordered_list = get_correct_ordering()
+
+    for elm in ordered_list:
+        src_elm: Element = elm
+        if src_elm.type == ElementType.MAIN_FUNCTION_EXECUTABLE or src_elm.type == ElementType.OUTPUT_ONLY:
+            shader_inside_main += src_elm.function + "\n"
+        else:
+            shader_before_main += src_elm.function + "\n"
     
     final_shader = shader_before_main + "\nvoid main() {\n" + shader_inside_main + "\n}"
     print(final_shader)
@@ -118,12 +203,23 @@ with dpg.window(tag="win"):
 
             dpg.add_text("Elements")
             dpg.add_separator()
+            
             for el in all_elements:
-                print(el)
+
+                # create category if it doesn't exist
+                if el.category not in category_headers:
+                    category_headers[el.category] = dpg.add_collapsing_header(
+                        label=el.category,
+                        default_open=False,
+                        parent="sidebar"
+                    )
+
+                # add button inside that category
                 dpg.add_button(
                     label=el.name,
-                    user_data=el, 
+                    user_data=el,
                     callback=lambda s, a, u: add_element_node(u),
+                    parent=category_headers[el.category],
                     width=-1
                 )
             
@@ -135,16 +231,16 @@ with dpg.window(tag="win"):
         with dpg.node_editor(tag="editor", width=-1, height=-1,
                              callback=on_link, delink_callback=on_delink):
 
-            with dpg.node(label="srcTex", pos=(50, 100)):
+            with dpg.node(label="srcTex", pos=(50, 100), user_data={"element":elements.srcImg, "connections":[], "index": 0}):
                 with dpg.node_attribute(tag="out_a", attribute_type=dpg.mvNode_Attr_Output):
                     dpg.add_text(ShaderType.SAMPLER2D.value, tag="out_a_text")
 
-            with dpg.node(label="pixel_coords", pos=(50, 170)):
+            with dpg.node(label="pixel_coords", pos=(50, 170), user_data={"element":elements.pixelCoords, "connections":[], "index": 1}):
                 with dpg.node_attribute(tag="out_b", attribute_type=dpg.mvNode_Attr_Output):
                     dpg.add_text(ShaderType.VEC2.value, tag="out_b_text")
 
-            with dpg.node(label="destTex", pos=(300, 135)):
-                with dpg.node_attribute(tag="in_a", attribute_type=dpg.mvNode_Attr_Input):
+            with dpg.node(label="destTex", pos=(300, 135), user_data={"element":elements.destImg, "connections":[], "index": 2}):
+                with dpg.node_attribute(tag="in_a", attribute_type=dpg.mvNode_Attr_Input, user_data={"kind": "input", "index": 0}):
                     dpg.add_text(ShaderType.VEC3.value, tag="in_a_text")
 
 dpg.create_viewport(title="Shader Graph", width=900, height=600)
