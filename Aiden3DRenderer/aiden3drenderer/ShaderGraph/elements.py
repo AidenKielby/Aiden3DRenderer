@@ -1,5 +1,9 @@
-from element import Element, ElementType
-from shader_type import ShaderType
+try:
+	from .element import Element, ElementType
+	from .shader_type import ShaderType
+except ImportError:
+	from element import Element, ElementType
+	from shader_type import ShaderType
 
 
 
