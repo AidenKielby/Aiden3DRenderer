@@ -172,7 +172,6 @@ def on_link(sender, app_data, user_data):
 
         dst_function1 = dst_function.replace(f"input{dst_index+1}", src_variable_name)
 
-        print([dst_function, dst_function1])
         changes.append([dst_function, dst_function1, dst_elm])
         connections.append({
             "src_node": src_node,
@@ -267,7 +266,6 @@ layout(rgba32f, binding = 0) uniform image2D destTex;
     shader_inside = ""
 
     for elm in ordered_list:
-        print(elm.function)
         src_elm: Element = elm
         if src_elm.type == ElementType.MAIN_FUNCTION_EXECUTABLE or src_elm.type == ElementType.OUTPUT_ONLY or src_elm.type == ElementType.USER_DEFINED:
             shader_inside += src_elm.function + "\n"
