@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="aiden3drenderer",
-    version="1.12.6",
+    version="1.12.7",
     author="Aiden",
     author_email="headstone.yt@gmail.com",
     description="A real-time 3D function visualizer with a plug-and-play GPU pipeline—write simple compute shaders to create custom effects without dealing with complex rendering internals.",
