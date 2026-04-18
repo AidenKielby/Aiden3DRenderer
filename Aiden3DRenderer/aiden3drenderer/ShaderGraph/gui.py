@@ -11,7 +11,7 @@ try:
     from .element import Element, ElementType
     from .shader_type import ShaderType
     from . import elements
-except Exception:
+except ImportError:
     from element import Element, ElementType
     from shader_type import ShaderType
     import elements
@@ -32,12 +32,17 @@ final_shader = """
 
 """
 
-shader_before_main = """
+shader_before_main_base = """
 #version 430
 layout(local_size_x = 16, local_size_y = 16) in;
 
 layout(rgba32f, binding = 0) uniform image2D destTex;
 """
+
+shader_inside_main_base = """
+"""
+
+shader_before_main = shader_before_main_base
 
 shader_inside_main = """
 """
@@ -137,19 +142,39 @@ def on_link(sender, app_data, user_data):
         dst_elm.function = dst_function1
 
 
+def cleanup_link(link_tag, remove_visual=True):
+    idx = link_map.pop(link_tag, None)
+    if idx is None:
+        return
+    change = changes[idx]
+    elm: Element = change[2]
+    elm.function = change[0]
+    del changes[idx]
+    del connections[idx]
+    # rebuild link_map values safely (avoid mutating while iterating)
+    new_map = {}
+    for lt, old_idx in link_map.items():
+        new_map[lt] = old_idx - 1 if old_idx > idx else old_idx
+    link_map.clear()
+    link_map.update(new_map)
+    if remove_visual:
+        try:
+            dpg.delete_item(link_tag)
+        except Exception:
+            pass
+
 def on_delink(sender, app_data):
-    dpg.delete_item(app_data)
-    key = link_map.pop(app_data, None)
-    if key:
-        change = changes[key]
-        elm: Element = change[2]
-        elm.function = change[0]
-        # delete old connections and changes
-        
+    cleanup_link(app_data)
 
 def delete_selected_nodes(sender, app_data):
     selected_nodes = dpg.get_selected_nodes("editor")
     for node in selected_nodes:
+        links_to_remove = [
+            lt for lt, idx in list(link_map.items())
+            if connections[idx]["src_node"] == node or connections[idx]["dst_node"] == node
+        ]
+        for lt in links_to_remove:
+            cleanup_link(lt, remove_visual=True)
         dpg.delete_item(node)
 
 def get_backward_neighbors(node):
@@ -185,19 +210,26 @@ def get_correct_ordering():
     return ordered_list
 
 def graph_to_shader():
-    global shader_before_main, shader_inside_main
 
     ordered_list = get_correct_ordering()
+
+    shader_before = """#version 430
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(rgba32f, binding = 0) uniform image2D destTex;
+"""
+    shader_inside = ""
 
     for elm in ordered_list:
         src_elm: Element = elm
         if src_elm.type == ElementType.MAIN_FUNCTION_EXECUTABLE or src_elm.type == ElementType.OUTPUT_ONLY:
-            shader_inside_main += src_elm.function + "\n"
+            shader_inside += src_elm.function + "\n"
         else:
-            shader_before_main += src_elm.function + "\n"
+            shader_before += src_elm.function + "\n"
     
-    final_shader = shader_before_main + "\nvoid main() {\n" + shader_inside_main + "\n}"
+    final_shader = shader_before + "\nvoid main() {\n" + shader_inside + "\n}"
     print(final_shader)
+    final_shader = ""
 
 
 def build_ui():
