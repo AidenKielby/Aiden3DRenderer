@@ -131,7 +131,7 @@ def demo():
 
         shader = CustomShader(dammage_shader, renderer.ctx)
 
-        tex_binding = 3
+        tex_binding = 4
         _ = shader.add_texture(str(damage_image_path), tex_binding, "damageImage")
 
     # dynamic distance updates every frame via renderer.shaders input
