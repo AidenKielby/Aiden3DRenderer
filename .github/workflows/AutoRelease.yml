@@ -104,6 +104,7 @@ jobs:
         run: |
           BRANCH="${{ github.event.pull_request.head.ref }}"
           PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_BODY="${{ github.event.pull_request.body }}"
           PR_NUMBER="${{ github.event.pull_request.number }}"
           PR_AUTHOR="${{ github.event.pull_request.user.login }}"
           MERGE_SHA="${{ github.event.pull_request.merge_commit_sha }}"
@@ -125,6 +126,16 @@ jobs:
           **PR:** [#${PR_NUMBER}](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}) — ${PR_TITLE}
           **Author:** @${PR_AUTHOR}
           **Commit:** \`${MERGE_SHA:0:7}\`
+      
+          ---
+      
+          ## Pull Request Details
+      
+          ### ${PR_TITLE}
+      
+          ${PR_BODY}
+      
+          ---
       
           ## Install
       
