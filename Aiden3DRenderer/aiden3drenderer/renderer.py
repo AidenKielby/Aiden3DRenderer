@@ -355,9 +355,20 @@ class Renderer3D:
         self.raster_half_h = self.rasterization_size[1] // 2
 
         self.entities: list[Entity] = []
-        pathImg = str(resources.files("aiden3drenderer").joinpath("fonts/not_a_font_but_whatever.png"))
-        self.shape_material = Material("shapeMat", pathImg, None)
-        self.shape_material = self.add_material(self.shape_material)
+        font_res = resources.files("aiden3drenderer").joinpath("fonts/not_a_font_but_whatever.png")
+        try:
+            with resources.as_file(font_res) as font_path:
+                pathImg = str(font_path)
+                self.shape_material = Material("shapeMat", pathImg, None)
+                self.shape_material = self.add_material(self.shape_material)
+        except Exception:
+            try:
+                pathImg = str(font_res)
+                self.shape_material = Material("shapeMat", pathImg, None)
+                self.shape_material = self.add_material(self.shape_material)
+            except Exception:
+                self.shape_material = Material("shapeMat", None, None)
+                self.shape_material = self.add_material(self.shape_material)
 
         def exit_button():
             pygame.quit()
@@ -1163,6 +1174,31 @@ class Renderer3D:
         self.bounding_boxes.append(bounding_box.get_bounding_box(verts))
         return obj
 
+
+    def mesh_to_matrix(self, X: np.ndarray, Y: np.ndarray, Z: np.ndarray):
+        if X.shape != Y.shape or X.shape != Z.shape:
+            raise ValueError("X, Y, Z must have the same shape")
+
+        rows = []
+        for i in range(X.shape[0]):
+            row = []
+            for j in range(X.shape[1]):
+                # (x, height, z) where height is Y in matplotlib terms
+                row.append((float(X[i, j]), float(Z[i, j]), float(Y[i, j])))
+            rows.append(row)
+        return rows
+
+
+    def plot_surface_from_mesh(self, renderer, X: list, Y: list, Z: list,
+                            name: str = "surface", key=None, color: tuple = (120, 180, 220)):
+        """Register a static surface shape from NumPy arrays and set it active."""
+        matrix = self.mesh_to_matrix(np.array(X), np.array(Y), np.array(Z))
+
+        @register_shape(name, key=key, is_animated=False, color=color)
+        def _surface():
+            return matrix
+
+        renderer.set_starting_shape(name)
 
     def project_3d_to_2d(self, matrix, fov, camera_pos, camera_facing):
         projected = []

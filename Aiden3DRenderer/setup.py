@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="aiden3drenderer",
-    version="1.12.4",
+    version="1.12.3",
     author="Aiden",
     author_email="headstone.yt@gmail.com",
     description="A real-time 3D function visualizer with a plug-and-play GPU pipeline—write simple compute shaders to create custom effects without dealing with complex rendering internals.",
@@ -41,7 +41,7 @@ setup(
         "pillow>=12.1.0",
         "lxml>=6.0.2"
     ],
-    package_data={"aiden3drenderer": ["fonts/*.ttf", "Demo/*"]},
+    package_data={"aiden3drenderer": ["fonts/*.ttf", "fonts/*.png", "Demo/*"]},
     extras_require={
         "dev": ["pytest>=7.0", "black", "flake8"],
         "shadergraph": ["dearpygui>=1.0.0"],
