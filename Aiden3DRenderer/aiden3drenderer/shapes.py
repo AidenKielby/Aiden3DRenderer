@@ -320,40 +320,47 @@ def generate_double_helix(length=60, time=0):
 
 
 @register_shape("mandelbulb", pygame.K_r, is_animated=False, color=(150, 0, 150))
-def generate_mandelbulb_slice(resolution=50, z_slice=0, max_iterations=10):
-    """Generate a 2D slice of a 3D Mandelbulb fractal"""
+def generate_mandelbulb_slice(resolution=140, z_slice=0, max_iterations=28, power=8, view_scale=2.2):
+    """Generate a high-detail 2D slice of a 3D Mandelbulb fractal."""
     gridCoords = []
+    escape_radius = 2
+    log_power = math.log(power)
     
     for x_idx in range(resolution):
         row = []
         for y_idx in range(resolution):
             # Map to Mandelbulb coordinate space
-            x = (x_idx / resolution - 0.5) * 3
-            y = (y_idx / resolution - 0.5) * 3
+            x = ((x_idx + 0.5) / resolution - 0.5) * view_scale
+            y = ((y_idx + 0.5) / resolution - 0.5) * view_scale
             z = z_slice
             
             # Calculate Mandelbulb iterations
             x0, y0, z0 = x, y, z
-            iteration = 0
+            escaped = False
             
-            for _ in range(max_iterations):
+            for iteration in range(max_iterations):
                 r = math.sqrt(x**2 + y**2 + z**2)
-                if r > 2:
+                if r > escape_radius:
+                    escaped = True
                     break
                 
                 theta = math.atan2(math.sqrt(x**2 + y**2), z)
                 phi = math.atan2(y, x)
                 
                 # Power 8 Mandelbulb formula
-                r8 = r ** 8
-                x = r8 * math.sin(8 * theta) * math.cos(8 * phi) + x0
-                y = r8 * math.sin(8 * theta) * math.sin(8 * phi) + y0
-                z = r8 * math.cos(8 * theta) + z0
-                
-                iteration += 1
-            
-            # Use iteration count as height
-            height = iteration * 2
+                r_power = r ** power
+                x = r_power * math.sin(power * theta) * math.cos(power * phi) + x0
+                y = r_power * math.sin(power * theta) * math.sin(power * phi) + y0
+                z = r_power * math.cos(power * theta) + z0
+
+            # Smooth escape-time coloring for continuous heights (removes stepped plateaus).
+            if escaped:
+                smooth_iteration = iteration + 1 - math.log(max(math.log(r), 1e-9)) / log_power
+                height = smooth_iteration * 1.25
+            else:
+                # Add slight interior shaping so non-escaping regions are not perfectly flat.
+                interior_radius = math.sqrt(x**2 + y**2 + z**2)
+                height = max_iterations * 1.25 + (interior_radius / escape_radius) * 1.5
             
             row.append((x_idx, height, y_idx))
         gridCoords.append(row)
@@ -424,7 +431,7 @@ def generate_trefoil_knot(resolution=50):
 
 
 @register_shape("plane", None, False)
-def generate_plane(size=20, rot_x=0, rot_y=0, rot_z=0):
+def generate_plane(size=5, rot_x=0, rot_y=0, rot_z=0):
     """Generate a flat plane centered at (0,0,0), optionally rotated around x, y, z axes (in radians)"""
     grid_coords = []
     cx = size / 2

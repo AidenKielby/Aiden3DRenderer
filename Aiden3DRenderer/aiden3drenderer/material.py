@@ -1,6 +1,6 @@
 
 class Material:
-    def __init__(self, name:str, texture_path:str, texture_index:int, base_color: tuple[float] = (155, 0, 0), transparent:bool = False, alpha:float = 1.0):
+    def __init__(self, name:str, texture_path:str, texture_index:int = None, base_color: tuple[float] = (155, 0, 0), transparent:bool = False, alpha:float = 1.0):
         self.name = name
         self.texture_path = texture_path
         self.texture_index = texture_index
