@@ -355,20 +355,6 @@ class Renderer3D:
         self.raster_half_h = self.rasterization_size[1] // 2
 
         self.entities: list[Entity] = []
-        font_res = resources.files("aiden3drenderer").joinpath("fonts/not_a_font_but_whatever.png")
-        try:
-            with resources.as_file(font_res) as font_path:
-                pathImg = str(font_path)
-                self.shape_material = Material("shapeMat", pathImg, None)
-                self.shape_material = self.add_material(self.shape_material)
-        except Exception:
-            try:
-                pathImg = str(font_res)
-                self.shape_material = Material("shapeMat", pathImg, None)
-                self.shape_material = self.add_material(self.shape_material)
-            except Exception:
-                self.shape_material = Material("shapeMat", None, None)
-                self.shape_material = self.add_material(self.shape_material)
 
         def exit_button():
             pygame.quit()
