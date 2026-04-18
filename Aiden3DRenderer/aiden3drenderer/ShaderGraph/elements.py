@@ -69,3 +69,9 @@ toVec2 = Element("to_vec_2", [ShaderType.FLOAT], [ShaderType.VEC2], "to_vec_2", 
 toVec3 = Element("to_vec_3", [ShaderType.FLOAT], [ShaderType.VEC3], "to_vec_3", "vec3 PLACEHOLDER = vec3(input1);", ElementType.MAIN_FUNCTION_EXECUTABLE, "utility")
 
 toVec4 = Element("to_vec_4", [ShaderType.FLOAT], [ShaderType.VEC4], "to_vec_4", "vec4 PLACEHOLDER = vec4(input1);", ElementType.MAIN_FUNCTION_EXECUTABLE, "utility")
+
+fromVec2 = Element("from_vec_2", [ShaderType.FLOAT, ShaderType.VEC2], [ShaderType.FLOAT], "from_vec_2", "float PLACEHOLDER = input2[int(input1)];", ElementType.MAIN_FUNCTION_EXECUTABLE, "utility")
+
+fromVec3 = Element("from_vec_3", [ShaderType.FLOAT, ShaderType.VEC3], [ShaderType.FLOAT], "from_vec_3", "float PLACEHOLDER = input2[int(input1)];", ElementType.MAIN_FUNCTION_EXECUTABLE, "utility")
+
+fromVec4 = Element("from_vec_4", [ShaderType.FLOAT, ShaderType.VEC4], [ShaderType.FLOAT], "from_vec_4", "float PLACEHOLDER = input2[int(input1)];", ElementType.MAIN_FUNCTION_EXECUTABLE, "utility")

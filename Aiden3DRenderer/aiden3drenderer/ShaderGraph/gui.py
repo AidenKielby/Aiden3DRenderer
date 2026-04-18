@@ -3,7 +3,9 @@ try:
 except ImportError:
     dpg = None
 
+import ast
 import inspect
+import re
 
 # Prefer package-relative imports, but fall back to direct imports when
 # the module is run without package context (helps local testing/install mixups).
@@ -27,25 +29,6 @@ all_elements = [
     obj for name, obj in inspect.getmembers(elements)
     if isinstance(obj, Element) and name not in ["srcTex", "destTex", "pixel_coords"]
 ]
-
-final_shader = """
-
-"""
-
-shader_before_main_base = """
-#version 430
-layout(local_size_x = 16, local_size_y = 16) in;
-
-layout(rgba32f, binding = 0) uniform image2D destTex;
-"""
-
-shader_inside_main_base = """
-"""
-
-shader_before_main = shader_before_main_base
-
-shader_inside_main = """
-"""
 
 def get_unique_name(placeholder, taken_names):
     if placeholder not in taken_names:
@@ -76,8 +59,13 @@ def add_element_node(element: Element):
     node_counter += 1
     ntag = f"node_{node_counter}"
 
+    element = Element(element.name, element.inputs, element.outputs, element.variable_name, element.function, element.type, element.category)
+
     element_function_variable_name = get_unique_name(element.variable_name, taken_variable_names)
-    element.function = element.function.replace("PLACEHOLDER", element_function_variable_name)
+    element.name = element_function_variable_name
+    taken_variable_names.append(element_function_variable_name)
+
+    element.function = element.function.replace("PLACEHOLDER", element.name)
 
     with dpg.node(label=element.name, parent="editor", pos=(200, 50 + node_counter * 20), user_data={"element":element, "conections":[], "index": node_counter-1}) as node:
         if element.type == ElementType.USER_DEFINED:
@@ -105,7 +93,6 @@ def add_element_node(element: Element):
                 user_data={"kind": "output", "index": i}
             ):
                 dpg.add_text(out.value)
-        
 
 def on_link(sender, app_data, user_data):
     src_attr = app_data[0]
@@ -133,14 +120,51 @@ def on_link(sender, app_data, user_data):
 
     dst_index = dst_attr_data["index"]
 
-    if str(src_text == dst_text):
+    if src_text == dst_text or src_text == "any" or dst_text == "any":
         link_tag = dpg.add_node_link(app_data[0], app_data[1], parent="editor")
         
         dst_elm: Element = dst_node_data["element"]
         src_elm: Element = src_node_data["element"]
 
         if src_elm.outputs[0] == ShaderType.ANY:
-            src_elm.function = dst_elm.inputs[dst_index].value + " " + src_elm.function
+            new_func = dst_elm.inputs[dst_index].value + " " + src_elm.function
+
+            new_inp = []
+            for i in range(len(src_elm.inputs)):
+                new_inp.append(dst_elm.inputs[dst_index])
+
+            src_elm = Element(src_elm.name, new_inp, [new_inp[0]], src_elm.variable_name, new_func, src_elm.type, src_elm.category)
+            src_node_data["element"] = src_elm
+
+            for inp_attr in dpg.get_item_children(src_node, 1):
+                text_children = dpg.get_item_children(inp_attr, 1)
+
+                if not text_children:
+                    continue
+
+                text_item = text_children[0]
+
+                dpg.set_value(text_item, dst_elm.inputs[dst_index].value)
+        
+        if dst_elm.inputs[dst_index] == ShaderType.ANY:
+            new_func = src_elm.outputs[0].value + " " + dst_elm.function
+
+            new_inp = []
+            for i in range(len(dst_elm.inputs)):
+                new_inp.append(src_elm.outputs[0])
+
+            dst_elm = Element(dst_elm.name, new_inp, [new_inp[0]], dst_elm.variable_name, new_func, dst_elm.type, dst_elm.category)
+            dst_node_data["element"] = dst_elm
+            
+            for inp_attr in dpg.get_item_children(dst_node, 1):
+                text_children = dpg.get_item_children(inp_attr, 1)
+
+                if not text_children:
+                    continue
+
+                text_item = text_children[0]
+
+                dpg.set_value(text_item, src_elm.outputs[0].value)
         
         new_func = src_elm.function.replace("uniform ", "").replace(";", "")
         src_variable_name = new_func.split(" ")[1]
@@ -148,6 +172,7 @@ def on_link(sender, app_data, user_data):
 
         dst_function1 = dst_function.replace(f"input{dst_index+1}", src_variable_name)
 
+        print([dst_function, dst_function1])
         changes.append([dst_function, dst_function1, dst_elm])
         connections.append({
             "src_node": src_node,
@@ -221,7 +246,10 @@ def get_correct_ordering():
         for n in neighbors:
             queue.append(n)
         
-        ordered_list.insert(0, dpg.get_item_user_data(node)["element"])
+        elm = dpg.get_item_user_data(node)["element"]
+        if elm in ordered_list:
+            ordered_list.remove(elm)
+        ordered_list.insert(0, elm)
 
         del queue[0]
     
@@ -239,6 +267,7 @@ layout(rgba32f, binding = 0) uniform image2D destTex;
     shader_inside = ""
 
     for elm in ordered_list:
+        print(elm.function)
         src_elm: Element = elm
         if src_elm.type == ElementType.MAIN_FUNCTION_EXECUTABLE or src_elm.type == ElementType.OUTPUT_ONLY or src_elm.type == ElementType.USER_DEFINED:
             shader_inside += src_elm.function + "\n"
@@ -246,8 +275,65 @@ layout(rgba32f, binding = 0) uniform image2D destTex;
             shader_before += src_elm.function + "\n"
     
     final_shader = shader_before + "\nvoid main() {\n" + shader_inside + "\n}"
-    print(final_shader)
+    final_shader1 = final_shader
     final_shader = ""
+    return final_shader1
+
+# this func is not mine 
+def find_last_import_line(filepath):
+    with open(filepath, "r") as f:
+        tree = ast.parse(f.read())
+
+    last_line = None
+
+    for node in tree.body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            last_line = node.lineno
+
+    return last_line
+
+# this func is not mine 
+def insert_line(filepath, line_number, new_text):
+    with open(filepath, "r") as f:
+        lines = f.readlines()
+
+    index = line_number
+
+    if index > len(lines):
+        index = len(lines) 
+
+    lines.insert(index, new_text + "\n")
+
+    with open(filepath, "w") as f:
+        f.writelines(lines)
+
+def export_shader():
+    path = dpg.get_value("file_path_input")
+    name = dpg.get_value("shader_name_input").strip() or "shader"
+
+    shader_output = graph_to_shader()  
+
+    with open(path, 'r') as file:
+        content = file.read()
+
+    pattern = rf'({name}\s*=\s*)(["\']{{3}})(.*?)(\2)'
+
+    def replacer(match):
+        prefix = match.group(1)
+        quote = match.group(2)
+        return f"{prefix}{quote}{shader_output}{quote}"
+
+    new_content, count = re.subn(pattern, replacer, content, flags=re.DOTALL)
+
+    if count == 0:
+        num = find_last_import_line(path)
+        if num is None:
+            num = 0
+        insert_line(path, num, f'{name} = """{shader_output}"""')
+    else:
+        with open(path, 'w') as file:
+            file.write(new_content)
+
 
 
 def build_ui():
@@ -258,7 +344,7 @@ def build_ui():
             with dpg.child_window(tag="sidebar", width=150, height=-1):
                 dpg.add_text("Done?")
                 dpg.add_separator()
-                dpg.add_button(label="Make Shader Code", callback=graph_to_shader)
+                btn = dpg.add_button(label="Export Shader")
                 
                 dpg.add_spacing(count = 3)
 
@@ -284,6 +370,12 @@ def build_ui():
                         width=-1
                     )
                 
+            with dpg.popup(btn, mousebutton=dpg.mvMouseButton_Left):
+                dpg.add_text("Export Shader")
+                dpg.add_input_text(label="Shader Name", tag="shader_name_input")
+                dpg.add_input_text(label="File Path", tag="file_path_input")
+                dpg.add_button(label="Export", callback=export_shader)
+
             with dpg.handler_registry():
                 dpg.add_key_press_handler(key=dpg.mvKey_Delete, callback=delete_selected_nodes)
                 dpg.add_key_press_handler(key=dpg.mvKey_Back, callback=delete_selected_nodes)
