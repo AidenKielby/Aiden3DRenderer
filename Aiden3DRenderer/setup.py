@@ -5,10 +5,10 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="aiden3drenderer",
-    version="1.11.5",
+    version="1.11.6",
     author="Aiden",
     author_email="headstone.yt@gmail.com",
-    description="A lightweight 3D wireframe renderer built from scratch using Pygame",
+    description="A real-time 3D function visualizer with a plug-and-play GPU pipeline—write simple compute shaders to create custom effects without dealing with complex rendering internals.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/AidenKielby/3D-mesh-Renderer",
@@ -44,12 +44,14 @@ setup(
     package_data={"aiden3drenderer": ["fonts/*.ttf", "Demo/*"]},
     extras_require={
         "dev": ["pytest>=7.0", "black", "flake8"],
+        "shadergraph": ["dearpygui>=1.0.0"],
     },
     entry_points={
         "console_scripts": [
             "aiden3d-demo=aiden3drenderer.Demo.silly_skull:demo",
             "inverted-aiden3d-demo=aiden3drenderer.Demo.silly_skull:demo_inv",
             "aiden3d-mac=aiden3drenderer.Demo.silly_skull:demo_mac",
+            "shader-graph=aiden3drenderer.ShaderGraph.gui:run",
         ],
     },
     include_package_data=True,

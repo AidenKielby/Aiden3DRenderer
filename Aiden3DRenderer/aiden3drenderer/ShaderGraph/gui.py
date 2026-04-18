@@ -1,4 +1,7 @@
-import dearpygui.dearpygui as dpg
+try:
+    import dearpygui.dearpygui as dpg
+except ImportError:
+    dpg = None
 
 from element import Element, ElementType
 from shader_type import ShaderType
@@ -97,7 +100,7 @@ def on_link(sender, app_data, user_data):
 
     src_node_data = dpg.get_item_user_data(src_node)
     dst_node_data = dpg.get_item_user_data(dst_node)
-    
+
     dst_index = dst_attr_data["index"]
 
     if str(src_text == dst_text):
@@ -140,8 +143,6 @@ def delete_selected_nodes(sender, app_data):
     selected_nodes = dpg.get_selected_nodes("editor")
     for node in selected_nodes:
         dpg.delete_item(node)
-
-dpg.create_context()
 
 def get_backward_neighbors(node):
     return [
@@ -190,62 +191,73 @@ def graph_to_shader():
     final_shader = shader_before_main + "\nvoid main() {\n" + shader_inside_main + "\n}"
     print(final_shader)
 
-with dpg.window(tag="win"):
-    with dpg.group(horizontal=True):
-        
-        # Sidebar
-        with dpg.child_window(tag="sidebar", width=150, height=-1):
-            dpg.add_text("Done?")
-            dpg.add_separator()
-            dpg.add_button(label="Make Shader Code", callback=graph_to_shader)
-            
-            dpg.add_spacing(count = 3)
 
-            dpg.add_text("Elements")
-            dpg.add_separator()
+def build_ui():
+    with dpg.window(tag="win"):
+        with dpg.group(horizontal=True):
             
-            for el in all_elements:
+            # Sidebar
+            with dpg.child_window(tag="sidebar", width=150, height=-1):
+                dpg.add_text("Done?")
+                dpg.add_separator()
+                dpg.add_button(label="Make Shader Code", callback=graph_to_shader)
+                
+                dpg.add_spacing(count = 3)
 
-                # create category if it doesn't exist
-                if el.category not in category_headers:
-                    category_headers[el.category] = dpg.add_collapsing_header(
-                        label=el.category,
-                        default_open=False,
-                        parent="sidebar"
+                dpg.add_text("Elements")
+                dpg.add_separator()
+                
+                for el in all_elements:
+
+                    # create category if it doesn't exist
+                    if el.category not in category_headers:
+                        category_headers[el.category] = dpg.add_collapsing_header(
+                            label=el.category,
+                            default_open=False,
+                            parent="sidebar"
+                        )
+
+                    # add button inside that category
+                    dpg.add_button(
+                        label=el.name,
+                        user_data=el,
+                        callback=lambda s, a, u: add_element_node(u),
+                        parent=category_headers[el.category],
+                        width=-1
                     )
+                
+            with dpg.handler_registry():
+                dpg.add_key_press_handler(key=dpg.mvKey_Delete, callback=delete_selected_nodes)
+                dpg.add_key_press_handler(key=dpg.mvKey_Back, callback=delete_selected_nodes)
 
-                # add button inside that category
-                dpg.add_button(
-                    label=el.name,
-                    user_data=el,
-                    callback=lambda s, a, u: add_element_node(u),
-                    parent=category_headers[el.category],
-                    width=-1
-                )
-            
-        with dpg.handler_registry():
-            dpg.add_key_press_handler(key=dpg.mvKey_Delete, callback=delete_selected_nodes)
-            dpg.add_key_press_handler(key=dpg.mvKey_Back, callback=delete_selected_nodes)
+            # Node editor
+            with dpg.node_editor(tag="editor", width=-1, height=-1,
+                                callback=on_link, delink_callback=on_delink):
 
-        # Node editor
-        with dpg.node_editor(tag="editor", width=-1, height=-1,
-                             callback=on_link, delink_callback=on_delink):
+                with dpg.node(label="srcTex", pos=(50, 100), user_data={"element":elements.srcImg, "connections":[], "index": 0}):
+                    with dpg.node_attribute(tag="out_a", attribute_type=dpg.mvNode_Attr_Output):
+                        dpg.add_text(ShaderType.SAMPLER2D.value, tag="out_a_text")
 
-            with dpg.node(label="srcTex", pos=(50, 100), user_data={"element":elements.srcImg, "connections":[], "index": 0}):
-                with dpg.node_attribute(tag="out_a", attribute_type=dpg.mvNode_Attr_Output):
-                    dpg.add_text(ShaderType.SAMPLER2D.value, tag="out_a_text")
+                with dpg.node(label="pixel_coords", pos=(50, 170), user_data={"element":elements.pixelCoords, "connections":[], "index": 1}):
+                    with dpg.node_attribute(tag="out_b", attribute_type=dpg.mvNode_Attr_Output):
+                        dpg.add_text(ShaderType.VEC2.value, tag="out_b_text")
 
-            with dpg.node(label="pixel_coords", pos=(50, 170), user_data={"element":elements.pixelCoords, "connections":[], "index": 1}):
-                with dpg.node_attribute(tag="out_b", attribute_type=dpg.mvNode_Attr_Output):
-                    dpg.add_text(ShaderType.VEC2.value, tag="out_b_text")
+                with dpg.node(label="destTex", pos=(300, 135), user_data={"element":elements.destImg, "connections":[], "index": 2}):
+                    with dpg.node_attribute(tag="in_a", attribute_type=dpg.mvNode_Attr_Input, user_data={"kind": "input", "index": 0}):
+                        dpg.add_text(ShaderType.VEC3.value, tag="in_a_text")
 
-            with dpg.node(label="destTex", pos=(300, 135), user_data={"element":elements.destImg, "connections":[], "index": 2}):
-                with dpg.node_attribute(tag="in_a", attribute_type=dpg.mvNode_Attr_Input, user_data={"kind": "input", "index": 0}):
-                    dpg.add_text(ShaderType.VEC3.value, tag="in_a_text")
+def run():
+    if dpg is None:
+        raise RuntimeError("DearPyGui is not installed. Install with: pip install 'aiden3drenderer[shadergraph]'")
+    dpg.create_context()
+    build_ui()
+    dpg.create_viewport(title="Shader Graph", width=900, height=600)
+    dpg.setup_dearpygui()
+    dpg.show_viewport()
+    dpg.set_primary_window("win", True)
+    dpg.start_dearpygui()
+    dpg.destroy_context()
 
-dpg.create_viewport(title="Shader Graph", width=900, height=600)
-dpg.setup_dearpygui()
-dpg.show_viewport()
-dpg.set_primary_window("win", True)
-dpg.start_dearpygui()
-dpg.destroy_context()
+
+if __name__ == "__main__":
+    run()
