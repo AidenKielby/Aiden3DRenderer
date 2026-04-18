@@ -334,7 +334,26 @@ def export_shader():
         with open(path, 'w') as file:
             file.write(new_content)
 
+def custom_uniform():
+    unifrom_name = dpg.get_value("custom_uniform_name")
+    unifrom_dtype = dpg.get_value("custom_uniform_dtype")
+    users_uniform = Element(unifrom_name, [], [ShaderType.from_str(unifrom_dtype)], unifrom_name, f"uniform {unifrom_dtype} {unifrom_name};", ElementType.UNIFORM_LAYOUT, "uniform")
 
+    all_elements.append(users_uniform)
+    if users_uniform.category not in category_headers:
+        category_headers[users_uniform.category] = dpg.add_collapsing_header(
+            label=users_uniform.category,
+            default_open=False,
+            parent="sidebar"
+        )
+
+    dpg.add_button(
+        label=users_uniform.name,
+        user_data=users_uniform,
+        callback=lambda s, a, u: add_element_node(u),
+        parent=category_headers[users_uniform.category],
+        width=-1
+    )
 
 def build_ui():
     with dpg.window(tag="win"):
@@ -345,6 +364,7 @@ def build_ui():
                 dpg.add_text("Done?")
                 dpg.add_separator()
                 btn = dpg.add_button(label="Export Shader")
+                custom_uniform_btn = dpg.add_button(label="Custom Uniform")
                 
                 dpg.add_spacing(count = 3)
 
@@ -375,6 +395,28 @@ def build_ui():
                 dpg.add_input_text(label="Shader Name", tag="shader_name_input")
                 dpg.add_input_text(label="File Path", tag="file_path_input")
                 dpg.add_button(label="Export", callback=export_shader)
+
+            with dpg.popup(custom_uniform_btn, mousebutton=dpg.mvMouseButton_Left):
+                dpg.add_text("Custom Uniform")
+                dpg.add_input_text(label="Name", tag="custom_uniform_name")
+                dpg.add_combo(
+                    items=[
+                        ShaderType.FLOAT.value,
+                        ShaderType.INT.value,
+                        ShaderType.BOOL.value,
+                        ShaderType.VEC2.value,
+                        ShaderType.VEC3.value,
+                        ShaderType.VEC4.value,
+                        ShaderType.MAT2.value,
+                        ShaderType.MAT3.value,
+                        ShaderType.MAT4.value,
+                        ShaderType.SAMPLER2D.value,
+                    ],
+                    label="Type",
+                    tag="custom_uniform_dtype",
+                    default_value=ShaderType.FLOAT.value,
+                )
+                dpg.add_button(label="Add", callback=custom_uniform)
 
             with dpg.handler_registry():
                 dpg.add_key_press_handler(key=dpg.mvKey_Delete, callback=delete_selected_nodes)
