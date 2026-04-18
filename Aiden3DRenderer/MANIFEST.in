@@ -1,2 +1,3 @@
 recursive-include aiden3drenderer/fonts *.ttf
+recursive-include aiden3drenderer/fonts *.png
 recursive-include aiden3drenderer/Demo *
