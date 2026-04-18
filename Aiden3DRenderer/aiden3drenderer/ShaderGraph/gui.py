@@ -62,6 +62,15 @@ def get_unique_name(placeholder, taken_names):
 
 taken_variable_names = ["srcTex", "destTex", "pixel_coords"]
 
+def on_text_update(sender, app_data, user_data):
+    node = user_data
+    output = app_data
+
+    node_data = dpg.get_item_user_data(node)
+    elm: Element = node_data["element"]
+    spliten = elm.function.split("=")
+    elm.function = "= ".join([spliten[0], output]) + ";"
+
 def add_element_node(element: Element):
     global node_counter
     node_counter += 1
@@ -70,7 +79,15 @@ def add_element_node(element: Element):
     element_function_variable_name = get_unique_name(element.variable_name, taken_variable_names)
     element.function = element.function.replace("PLACEHOLDER", element_function_variable_name)
 
-    with dpg.node(label=element.name, parent="editor", pos=(200, 50 + node_counter * 20), user_data={"element":element, "conections":[], "index": node_counter-1}):
+    with dpg.node(label=element.name, parent="editor", pos=(200, 50 + node_counter * 20), user_data={"element":element, "conections":[], "index": node_counter-1}) as node:
+        if element.type == ElementType.USER_DEFINED:
+            with dpg.node_attribute(attribute_type=dpg.mvNode_Attr_Static):
+                dpg.add_input_text(
+                    label="Value",
+                    callback=on_text_update,
+                    user_data=node,
+                    width=50
+                )
         for i, inp in enumerate(element.inputs):
             ptag = f"{ntag}_in_{i}"
             with dpg.node_attribute(
@@ -118,11 +135,12 @@ def on_link(sender, app_data, user_data):
 
     if str(src_text == dst_text):
         link_tag = dpg.add_node_link(app_data[0], app_data[1], parent="editor")
-        src_node = dpg.get_item_parent(app_data[0])
-        dst_node = dpg.get_item_parent(app_data[1])
         
         dst_elm: Element = dst_node_data["element"]
         src_elm: Element = src_node_data["element"]
+
+        if src_elm.outputs[0] == ShaderType.ANY:
+            src_elm.function = dst_elm.inputs[dst_index].value + " " + src_elm.function
         
         new_func = src_elm.function.replace("uniform ", "").replace(";", "")
         src_variable_name = new_func.split(" ")[1]
@@ -222,7 +240,7 @@ layout(rgba32f, binding = 0) uniform image2D destTex;
 
     for elm in ordered_list:
         src_elm: Element = elm
-        if src_elm.type == ElementType.MAIN_FUNCTION_EXECUTABLE or src_elm.type == ElementType.OUTPUT_ONLY:
+        if src_elm.type == ElementType.MAIN_FUNCTION_EXECUTABLE or src_elm.type == ElementType.OUTPUT_ONLY or src_elm.type == ElementType.USER_DEFINED:
             shader_inside += src_elm.function + "\n"
         else:
             shader_before += src_elm.function + "\n"

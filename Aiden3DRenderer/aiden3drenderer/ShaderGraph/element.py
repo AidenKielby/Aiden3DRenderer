@@ -7,6 +7,7 @@ class ElementType(Enum):
     UNIFORM_LAYOUT = "uniform or layout"
     MAIN_FUNCTION_EXECUTABLE = "main function execitable"
     OUTPUT_ONLY = "output only"
+    USER_DEFINED = "user defined"
 
 class Element:
     def __init__(self, name: str, inputs: list[type], outputs: list[type], variable_name: str, function: str, type: ElementType, category: str = "misc"):
