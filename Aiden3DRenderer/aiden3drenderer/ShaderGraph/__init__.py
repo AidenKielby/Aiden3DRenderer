@@ -1,8 +1,9 @@
-"""Demo subpackage for aiden3drenderer.
+"""ShaderGraph package for aiden3drenderer.
 
-This makes `aiden3drenderer.Demo` a proper package and re-exports the demo() function.
+Contains the ShaderGraph GUI and helper modules. Do not import
+submodules here to avoid triggering optional dependencies at
+package-import time.
 """
 
-from .gui import run
-
-__all__ = ["run"]
+# Keep a minimal package marker; import submodules explicitly when needed.
+__all__ = ["gui", "element", "elements", "shader_type"]

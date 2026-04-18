@@ -3,10 +3,18 @@ try:
 except ImportError:
     dpg = None
 
-from element import Element, ElementType
-from shader_type import ShaderType
 import inspect
-import elements
+
+# Prefer package-relative imports, but fall back to direct imports when
+# the module is run without package context (helps local testing/install mixups).
+try:
+    from .element import Element, ElementType
+    from .shader_type import ShaderType
+    from . import elements
+except Exception:
+    from element import Element, ElementType
+    from shader_type import ShaderType
+    import elements
 
 changes = []
 connections = []
