@@ -48,13 +48,11 @@ setup(
         "lxml>=6.0.2"
     ],
     extras_require={
-        "mac": mac_requires
-    },
-    package_data={"aiden3drenderer": ["fonts/*.ttf", "fonts/*.png", "Demo/*"]},
-    extras_require={
         "dev": ["pytest>=7.0", "black", "flake8"],
         "shadergraph": ["dearpygui>=1.0.0"],
+        "mac": mac_requires,
     },
+    package_data={"aiden3drenderer": ["fonts/*.ttf", "fonts/*.png", "Demo/*"]},
     entry_points={
         "console_scripts": [
             "aiden3d-demo=aiden3drenderer.Demo.silly_skull:demo",
