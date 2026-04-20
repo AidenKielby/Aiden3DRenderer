@@ -100,8 +100,11 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: twine upload dist/*
 
-      - name: Build release notes
+      - name: Build release notes (include Python snippet, do NOT execute)
+        shell: bash
         run: |
+          set -euo pipefail
+      
           BRANCH="${{ github.event.pull_request.head.ref }}"
           PR_TITLE="${{ github.event.pull_request.title }}"
           PR_BODY="${{ github.event.pull_request.body }}"
@@ -118,14 +121,15 @@ jobs:
             CHANGELOG_URL="https://github.com/${{ github.repository }}/releases/tag/${NEW}"
           fi
       
-          # IMPORTANT: quoted heredoc delimiter => do NOT expand anything inside.
-          cat > release_notes.md <<'EOF'
+          # Unquoted EOF on purpose so ${...} variables expand,
+          # but the Python inside is fenced so it is treated as text in Markdown.
+          cat > release_notes.md <<EOF
           ## What's Changed
       
-          **Branch:** `${BRANCH}`
+          **Branch:** \`${BRANCH}\`
           **PR:** [#${PR_NUMBER}](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}) — ${PR_TITLE}
           **Author:** @${PR_AUTHOR}
-          **Commit:** `${MERGE_SHA:0:7}`
+          **Commit:** \`${MERGE_SHA:0:7}\`
       
           ---
       
@@ -139,9 +143,18 @@ jobs:
       
           ## Install
       
-          ```
+          \`\`\`
           pip install aiden3drenderer==${VERSION}
-          ```
+          \`\`\`
+      
+          ## Example (Python)
+      
+          \`\`\`python
+          from aiden3drenderer import Renderer3D
+      
+          renderer = Renderer3D()
+          # ...
+          \`\`\`
       
           **Full Changelog:** ${CHANGELOG_URL}
           EOF
