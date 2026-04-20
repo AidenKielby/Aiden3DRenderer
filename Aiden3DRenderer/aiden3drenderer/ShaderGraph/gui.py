@@ -12,10 +12,12 @@ import re
 try:
     from .element import Element, ElementType
     from .shader_type import ShaderType
+    from .shader_target import ShaderTarget
     from . import elements
 except ImportError:
     from element import Element, ElementType
     from shader_type import ShaderType
+    from shader_target import ShaderTarget
     import elements
 
 changes = []
@@ -25,9 +27,89 @@ node_counter = 3
 
 category_headers = {}
 
+def compute_main(body):
+    return f"""
+void main() {{
+ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy);
+{body}
+
+}}
+"""
+
+compute_glsl = ShaderTarget(
+    name="compute_glsl",
+    header="#version 430\nlayout(local_size_x = 16, local_size_y = 16) in;\n",
+    globals_block="""
+layout(rgba32f, binding = 0) uniform image2D destTex;
+uniform sampler2D srcTex;
+""",
+    main_wrapper=compute_main,
+    entry_inputs=["srcTex"],
+    restricted_elements=[
+        "srcTex",       
+        "destTex",       
+        "pixel_coords", 
+    ]
+)
+
+def fragment_main(body):
+    return f"""
+out vec4 FragColor;
+
+void main() {{
+    vec2 uv = gl_FragCoord.xy;
+{body}
+}}
+"""
+
+fragment_glsl = ShaderTarget(
+    name="fragment_glsl",
+    header="#version 330 core\n",
+    globals_block="""
+in vec2 TexCoords;
+uniform sampler2D srcTex;
+""",
+    main_wrapper=fragment_main,
+    entry_inputs=["srcTex"],
+    restricted_elements=[
+        "srcTex",       
+        "destTex",       
+        "pixel_coords", 
+    ]
+)
+
+def vertex_main(body):
+    return f"""
+void main() {{
+{body}
+}}
+"""
+
+vertex_glsl = ShaderTarget(
+    name="vertex_glsl",
+    header="#version 330 core\n",
+    globals_block="""
+layout(location = 0) in vec3 aPos;
+uniform mat4 MVP;
+""",
+    main_wrapper=vertex_main,
+    restricted_elements = [
+        "aPos",
+        "MVP",
+        "destTex",
+        "pixel_coords",
+    ]
+)
+
+targets = {
+        "compute_glsl": compute_glsl,
+        "fragment_glsl": fragment_glsl,
+        "vertex_glsl": vertex_glsl,
+    }
+
 all_elements = [
     obj for name, obj in inspect.getmembers(elements)
-    if isinstance(obj, Element) and name not in ["srcTex", "destTex", "pixel_coords"]
+    if isinstance(obj, Element) and obj.name not in ["srcTex", "pixel_coords"]
 ]
 
 def get_unique_name(placeholder, taken_names):
@@ -254,28 +336,31 @@ def get_correct_ordering():
     
     return ordered_list
 
-def graph_to_shader():
+def graph_to_shader(target: ShaderTarget):
 
     ordered_list = get_correct_ordering()
 
-    shader_before = """#version 430
-layout(local_size_x = 16, local_size_y = 16) in;
-
-layout(rgba32f, binding = 0) uniform image2D destTex;
-"""
-    shader_inside = ""
+    global_code = target.globals_block
+    body_code = ""
 
     for elm in ordered_list:
-        src_elm: Element = elm
-        if src_elm.type == ElementType.MAIN_FUNCTION_EXECUTABLE or src_elm.type == ElementType.OUTPUT_ONLY or src_elm.type == ElementType.USER_DEFINED:
-            shader_inside += src_elm.function + "\n"
-        else:
-            shader_before += src_elm.function + "\n"
-    
-    final_shader = shader_before + "\nvoid main() {\n" + shader_inside + "\n}"
-    final_shader1 = final_shader
-    final_shader = ""
-    return final_shader1
+        if elm.variable_name not in target.restricted_elements:
+            if elm.type in (
+                ElementType.MAIN_FUNCTION_EXECUTABLE,
+                ElementType.OUTPUT_ONLY,
+                ElementType.USER_DEFINED
+            ):
+                body_code += elm.function + "\n"
+            else:
+                global_code += elm.function + "\n"
+
+    return (
+        target.header
+        + "\n"
+        + global_code
+        + "\n"
+        + target.main_wrapper(body_code)
+    )
 
 # this func is not mine 
 def find_last_import_line(filepath):
@@ -309,7 +394,9 @@ def export_shader():
     path = dpg.get_value("file_path_input")
     name = dpg.get_value("shader_name_input").strip() or "shader"
 
-    shader_output = graph_to_shader()  
+    target = dpg.get_value("target_selector")
+
+    shader_output = graph_to_shader(targets[target])  
 
     with open(path, 'r') as file:
         content = file.read()
@@ -358,13 +445,28 @@ def build_ui():
         with dpg.group(horizontal=True):
             
             # Sidebar
-            with dpg.child_window(tag="sidebar", width=150, height=-1):
+            with dpg.child_window(tag="sidebar", width=200, height=-1):
                 dpg.add_text("Done?")
                 dpg.add_separator()
                 btn = dpg.add_button(label="Export Shader")
+
+                dpg.add_spacer()
+                dpg.add_spacer()
+                dpg.add_spacer()
+
+                dpg.add_text("Customization:")
+                dpg.add_separator()
                 custom_uniform_btn = dpg.add_button(label="Custom Uniform")
+                dpg.add_text("Shader Target")
+                dpg.add_combo(
+                    items=["compute_glsl", "fragment_glsl", "vertex_glsl"],
+                    default_value="compute_glsl",
+                    tag="target_selector"
+                )
                 
-                dpg.add_spacing(count = 3)
+                dpg.add_spacer()
+                dpg.add_spacer()
+                dpg.add_spacer()
 
                 dpg.add_text("Elements")
                 dpg.add_separator()
@@ -432,7 +534,7 @@ def build_ui():
                     with dpg.node_attribute(tag="out_b", attribute_type=dpg.mvNode_Attr_Output):
                         dpg.add_text(ShaderType.VEC2.value, tag="out_b_text")
 
-                with dpg.node(label="destTex", pos=(300, 135), user_data={"element":elements.destImg, "connections":[], "index": 2}):
+                with dpg.node(label="imageStore", pos=(300, 135), user_data={"element":elements.destImg, "connections":[], "index": 2}):
                     with dpg.node_attribute(tag="in_a", attribute_type=dpg.mvNode_Attr_Input, user_data={"kind": "input", "index": 0}):
                         dpg.add_text(ShaderType.VEC3.value, tag="in_a_text")
 

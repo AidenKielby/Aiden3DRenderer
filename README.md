@@ -376,7 +376,7 @@ Some procedural terrains, and most documentation was AI-assisted; core renderer,
 
 ## License
 
-MIT
+APACHE 2.0
 
 ---
 
