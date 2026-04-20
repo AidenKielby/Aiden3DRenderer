@@ -8,7 +8,7 @@ Example usage:
     renderer.run()
 """
 
-__version__ = "1.12.15"
+__version__ = "1.12.16"
 __author__ = "Aiden"
 
 from .renderer import Renderer3D, register_shape, renderer_type, object_type, register_renderer_event

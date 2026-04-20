@@ -112,20 +112,20 @@ jobs:
           NEW="${{ steps.version.outputs.new_tag }}"
           LATEST="${{ steps.version.outputs.latest_tag }}"
       
-          # Only use compare URL if a previous tag actually exists on the remote
           if git ls-remote --tags origin "refs/tags/${LATEST}" | grep -q . && [ -n "$LATEST" ]; then
             CHANGELOG_URL="https://github.com/${{ github.repository }}/compare/${LATEST}...${NEW}"
           else
             CHANGELOG_URL="https://github.com/${{ github.repository }}/releases/tag/${NEW}"
           fi
       
-          cat > release_notes.md << EOF
+          # IMPORTANT: quoted heredoc delimiter => do NOT expand anything inside.
+          cat > release_notes.md <<'EOF'
           ## What's Changed
       
-          **Branch:** \`${BRANCH}\`
+          **Branch:** `${BRANCH}`
           **PR:** [#${PR_NUMBER}](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}) — ${PR_TITLE}
           **Author:** @${PR_AUTHOR}
-          **Commit:** \`${MERGE_SHA:0:7}\`
+          **Commit:** `${MERGE_SHA:0:7}`
       
           ---
       
@@ -139,9 +139,9 @@ jobs:
       
           ## Install
       
-          \`\`\`
+          ```
           pip install aiden3drenderer==${VERSION}
-          \`\`\`
+          ```
       
           **Full Changelog:** ${CHANGELOG_URL}
           EOF
