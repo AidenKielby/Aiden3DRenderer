@@ -98,3 +98,9 @@ Compute shader example outline
 - Build a `CustomShader` with the source and call `set_buffer` to allocate SSBOs.
 - Write your input arrays via `write_to_buffer` and dispatch the compute shader with `compute_shader.run(...)`.
 - Read results back via `read_from_buffer`.
+
+Node-based shader authoring
+
+- Use the packaged Shader Graph editor when you prefer visual node composition over hand-writing GLSL.
+- Launch with `shader-graph` and export generated shader strings into your Python module.
+- See [Shader Graph](shader_graph.md) for target modes (`compute_glsl`, `fragment_glsl`, `vertex_glsl`) and export caveats.

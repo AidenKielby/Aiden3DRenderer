@@ -1,116 +1,100 @@
 # Audit Report — Full Library Audit
 
-Date: 2026-04-04
+Date: 2026-04-19
 
-Scope
------
+## Scope
 
-This report documents a manual, source-first audit of package code in `aiden3drenderer/` against docs in `docs/`.
+This report documents a manual, source-first forensic audit of package code in `aiden3drenderer/` against `docs/`.
 
-Supreme-directive compliance
-----------------------------
+Audit method used for each module:
 
-- Manual source reading only (no audit automation scripts).
-- No source (`.py`) edits were made.
-- Documentation changes are based on directly observed runtime code paths and signatures.
+1. Static logic extraction from source.
+2. Empirical verification from first-party tests when available.
+3. Dependency mapping from in-repo usages.
+4. Drift detection against current docs pages.
 
-Public surface and packaging truth
-----------------------------------
+## Evidence quality note
 
-- Public API source: `aiden3drenderer/__init__.py`
-   - Root imports include `Renderer3D`, `register_shape`, `renderer_type`, `object_type`, `Camera`, `Material`, `MathShape`, `Entity`, `CustomShader`, `VideoRenderer3D`, `VideoRendererObject`, plus utility modules.
-   - `__version__` is `1.11.1`.
-- Packaging metadata source: `setup.py` (also version `1.11.1`).
-- No `pyproject.toml` is present in the repository root.
+The repository-level `tests/` directory contains no active first-party test modules in this snapshot (only `__pycache__/`).
 
-Source-to-doc relationship map
-------------------------------
+Empirical behavior was therefore validated from:
 
-- `aiden3drenderer/renderer.py` -> `docs/renderer.md`
-- `aiden3drenderer/camera.py` -> `docs/camera.md`
-- `aiden3drenderer/material.py` -> `docs/material.md`
-- `aiden3drenderer/obj_loader.py` -> `docs/obj_loader.md`
-- `aiden3drenderer/dae_loader.py` -> `docs/dae_loader.md`
-- `aiden3drenderer/entity.py` -> `docs/entities.md`
-- `aiden3drenderer/physics.py` -> `docs/physics.md`
-- `aiden3drenderer/custom_shader.py` -> `docs/custom_shaders.md`
-- `aiden3drenderer/math_shape.py` -> `docs/math_shape.md`
-- `aiden3drenderer/video_renderer.py` -> `docs/video_renderer.md`
-- `aiden3drenderer/bounding_box.py` -> `docs/bounding_box.md`
-- `aiden3drenderer/object_type.py` -> `docs/object_type.md`
-- `aiden3drenderer/button.py` -> `docs/button.md`
-- `aiden3drenderer/shapes.py` -> `docs/shapes.md`
-- `aiden3drenderer/Demo/silly_skull.py` -> `docs/demo.md`
-- `aiden3drenderer/__init__.py` + `setup.py` -> `docs/api.md`
+- package source code
+- packaged demo module
+- first-party `examples/` call sites
 
-Highest-drift findings (current)
---------------------------------
+## Public surface and packaging truth
 
-1. VideoRenderer / OBJ loader contract mismatch (runtime-breaking)
-   - `VideoRenderer3D.__init__` and `VideoRenderer3D.add_shape` call `get_obj(shape_path)` and unpack 2 values.
-   - Current `obj_loader.get_obj` requires `material` and returns 6 values.
-   - Effect: constructor/add-shape paths can fail before rendering with `TypeError` or unpacking errors.
+- Public API root: `aiden3drenderer/__init__.py`
+- Package version: `1.12.11` in both `aiden3drenderer/__init__.py` and `setup.py`
+- Console scripts:
+  - `aiden3d-demo` -> `aiden3drenderer.Demo.silly_skull:demo`
+  - `inverted-aiden3d-demo` -> `aiden3drenderer.Demo.silly_skull:demo_inv`
+  - `aiden3d-mac` -> `aiden3drenderer.Demo.silly_skull:demo_mac`
+  - `shader-graph` -> `aiden3drenderer.ShaderGraph.gui:run`
+- No `pyproject.toml` is present.
 
-2. `loopable_run` QUIT-event path uses undefined local
-   - In `Renderer3D.loopable_run`, handling `QUIT` executes `running = False` but no local `running` is initialized in that function.
-   - Effect: QUIT event can raise `NameError` in loopable mode.
+## Phase 1 — Matrix of Divergence (Pre-rewrite)
 
-3. VideoRenderer rotation-rate semantics do not match field name
-   - Source computes `rot_per_f = rotations_per_seccond * fps`.
-   - The name suggests per-second input, but multiplying by FPS creates very large per-frame increments.
-   - Effect: rotations are typically much faster than implied by public field naming.
+Status legend:
 
-4. Broad exception swallowing in renderer/shader integration
-   - Multiple non-critical paths use broad exception catches.
-   - Effect: failures can be silently ignored, increasing debugging difficulty.
+- `[ALIGNED]` code and docs match
+- `[DRIFTED]` docs existed but diverged from runtime/source truth
+- `[ORPHANED]` code existed without dedicated documentation coverage
 
-5. `Entity` script execution is intentionally unsafe by design
-   - `Entity.use_scripts()` executes attached script strings with `exec`.
-   - Effect: untrusted scripts are a security risk and should never be loaded.
+| Source file | Documentation target | Pre-rewrite status | Notes |
+| --- | --- | --- | --- |
+| `aiden3drenderer/__init__.py` | `docs/api.md` | `[DRIFTED]` | Version/export notes were stale; `MathShape` caveat outdated. |
+| `setup.py` | `docs/api.md` | `[DRIFTED]` | Version section in docs was stale. |
+| `aiden3drenderer/bounding_box.py` | `docs/bounding_box.md` | `[ALIGNED]` | Signature and return contract matched. |
+| `aiden3drenderer/button.py` | `docs/button.md` | `[ALIGNED]` | Behavior and public methods matched. |
+| `aiden3drenderer/camera.py` | `docs/camera.md` | `[ALIGNED]` | Input behavior and fields matched. |
+| `aiden3drenderer/custom_shader.py` | `docs/custom_shaders.md` | `[ALIGNED]` | Method surface and exceptions matched. |
+| `aiden3drenderer/dae_loader.py` | `docs/dae_loader.md` | `[ALIGNED]` | Material-based return contract matched. |
+| `aiden3drenderer/entity.py` | `docs/entities.md` | `[ALIGNED]` | `exec` scripting risk and update flow documented accurately. |
+| `aiden3drenderer/material.py` | `docs/material.md` | `[ALIGNED]` | Field/method caveats matched source behavior. |
+| `aiden3drenderer/math_shape.py` | `docs/math_shape.md` | `[ALIGNED]` | Type/complexity/security notes matched. |
+| `aiden3drenderer/object_type.py` | `docs/object_type.md` | `[ALIGNED]` | Enum members and loader contracts matched. |
+| `aiden3drenderer/obj_loader.py` | `docs/obj_loader.md` | `[ALIGNED]` | Signature and return model matched current code. |
+| `aiden3drenderer/physics.py` | `docs/physics.md` | `[ALIGNED]` | Core classes/methods and integration flow matched. |
+| `aiden3drenderer/renderer.py` | `docs/renderer.md` | `[ALIGNED]` | High-impact methods and known failure states matched current source. |
+| `aiden3drenderer/shapes.py` | `docs/shapes.md` | `[DRIFTED]` | `generate_mandelbulb_slice` defaults/params were stale. |
+| `aiden3drenderer/video_renderer.py` | `docs/video_renderer.md` | `[ALIGNED]` | Docs correctly captured known loader mismatch drift in runtime code. |
+| `aiden3drenderer/Demo/__init__.py` | `docs/demo.md` | `[ALIGNED]` | Package wrapper behavior minimal and covered. |
+| `aiden3drenderer/Demo/silly_skull.py` | `docs/demo.md` | `[DRIFTED]` | Docs still claimed an old loader mismatch that no longer exists. |
+| `aiden3drenderer/ShaderGraph/__init__.py` | (none) | `[ORPHANED]` | No dedicated docs page existed. |
+| `aiden3drenderer/ShaderGraph/shader_type.py` | (none) | `[ORPHANED]` | No dedicated docs page existed. |
+| `aiden3drenderer/ShaderGraph/shader_target.py` | (none) | `[ORPHANED]` | No dedicated docs page existed. |
+| `aiden3drenderer/ShaderGraph/element.py` | (none) | `[ORPHANED]` | No dedicated docs page existed. |
+| `aiden3drenderer/ShaderGraph/elements.py` | (none) | `[ORPHANED]` | No dedicated docs page existed. |
+| `aiden3drenderer/ShaderGraph/gui.py` | (none) | `[ORPHANED]` | No dedicated docs page existed. |
 
-6. Packaged demo entrypoints currently use stale loader argument shape
-   - `Demo/silly_skull.py` calls `obj_loader.get_obj(path, renderer.add_texture_for_raster(...), ...)`.
-   - Current `get_obj` expects `material: Material`.
-   - Effect: packaged `aiden3d-demo` entrypoints may fail at runtime until source is updated.
+## Rewrite actions completed (docs-only)
 
-7. Public API export list drift (`MathShape`)
-   - `__init__.py` imports `MathShape` at package root.
-   - `__all__` currently omits `MathShape`.
-   - Effect: direct import works, but wildcard import will not include `MathShape`.
+- Added new page: `docs/shader_graph.md` to cover the entire `ShaderGraph` subpackage.
+- Updated `docs/api.md` with current version, entrypoints, and corrected export caveat.
+- Updated `docs/demo.md` to remove stale mismatch claims and document current real failure modes.
+- Updated `docs/shapes.md` to match current `generate_mandelbulb_slice` signature/defaults.
+- Updated navigation and landing pages:
+  - `mkdocs.yml`
+  - `docs/index.md`
 
-Drift resolved in this docs pass
---------------------------------
+## Highest-risk runtime findings (still in source)
 
-- DAE docs were stale relative to current source.
-  - Current source now accepts/returns `Material` in `dae_loader.get_dae` model index `5`.
-  - Updated docs now reflect parity with `obj_loader` and `Renderer3D.add_obj` model contracts.
-- Previously orphaned demo module coverage was added.
-   - `Demo/silly_skull.py` behavior and current mismatch status are now documented in `docs/demo.md`.
-- Newly added source module `math_shape.py` is now documented.
-   - Added `docs/math_shape.md` and wired API/navigation links.
+These are source-runtime risks, not documentation errors:
 
-Files updated in this correction pass
--------------------------------------
+1. `VideoRenderer3D` loader contract mismatch remains in source.
+   - `video_renderer.py` calls `get_obj(shape_path)` and unpacks two values.
+   - `obj_loader.get_obj` currently requires `material` and returns six fields.
 
-- `docs/api.md`
-- `docs/dae_loader.md`
-- `docs/object_type.md`
-- `docs/renderer.md`
-- `docs/usage.md`
-- `docs/video_renderer.md`
-- `docs/audit_report.md`
-- `docs/demo.md`
-- `docs/math_shape.md`
-- `docs/tutorials.md`
-- `docs/physics.md`
-- `docs/index.md`
-- `docs/shapes.md`
-- `mkdocs.yml`
+2. `Renderer3D.loopable_run` QUIT-event path still uses undefined local `running`.
+   - On QUIT events this can raise `NameError`.
 
-Recommended remediation sequence
--------------------------------
+3. Example drift exists in several `examples/` scripts.
+   - Some examples still use old loader argument shapes (`texture_index=` style) inconsistent with current loaders.
 
-1. Fix `video_renderer.py` to pass `Material` into `get_obj` and handle the 6-item return model.
-2. Fix `Renderer3D.loopable_run` QUIT handling to avoid undefined `running` usage.
-3. Clarify or correct VideoRenderer rotation semantics (`rotations_per_seccond` vs per-frame increment math).
-4. Replace broad exception catches with targeted exceptions plus logging in shader and texture paths.
+## Current post-rewrite doc status summary
+
+- Orphaned package modules documented: `ShaderGraph/*`
+- Drifted docs corrected: API, Demo, Shapes, top-level nav/index
+- Remaining docs are aligned to current source behavior as observed in this audit pass

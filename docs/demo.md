@@ -61,25 +61,21 @@ Behavior:
 
 ## Failure states and current drift
 
-Current source contains a loader-contract mismatch in demo functions:
+Current source no longer has the previous OBJ-material mismatch in demo functions. The demo now constructs `Material` explicitly and passes it into `obj_loader.get_obj(...)`, which aligns with `Renderer3D.add_entity` expectations.
 
-- demo code calls obj_loader.get_obj(path, renderer.add_texture_for_raster(...), scale=4).
-- obj_loader.get_obj currently expects a Material object in argument 2.
-- add_texture_for_raster returns a numeric texture layer index (or None on macOS compute-disabled path).
-- Later, renderer.add_entity calls add_material on entity.model[5], which expects a Material-like object with texture_path.
+Observed remaining failure states:
 
-Practical result:
-
-- demo() and demo_inv() can fail when add_entity attempts material registration.
-- demo_mac() can also fail for the same reason (and may pass None as material argument).
-
-Until source is updated, treat these as legacy demos illustrating intended architecture rather than guaranteed runnable examples.
+- `demo()` and `demo_inv()` depend on compute-shader-capable OpenGL through `renderer_type.RASTERIZE`; unsupported drivers/platforms may fail when compute shaders are created or dispatched.
+- `demo_mac()` intentionally uses `MESH` mode and does not require compute shaders, but still depends on pygame window/context creation.
+- Resource-loading errors (`FileNotFoundError`, `OSError`) can occur if packaged assets are unavailable/corrupted in an installation.
+- Shader compilation/runtime errors can occur in the custom damage/invert compute passes.
 
 ## Performance notes
 
 - In demo() and demo_inv(), rendering cost is dominated by rasterization and post-process shader passes.
 - Additional shader stages in renderer.shaders add one dispatch per pass, so cost scales with raster target pixel count.
 - Lowering rasterization size through renderer.set_rasterization_downsize(...) is the primary runtime tuning control.
+- `demo_inv()` is strictly more expensive than `demo()` because it adds an additional full-screen compute pass.
 
 ## Real-world usage
 
