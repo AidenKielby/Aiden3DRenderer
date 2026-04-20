@@ -11,10 +11,30 @@ srcImgFunc = f"uniform sampler2D srcTex;"
 srcImg = Element("srcTex", [], [ShaderType.SAMPLER2D], "srcTex", srcImgFunc, ElementType.UNIFORM_LAYOUT, "uniform")
 
 destImgFunc = f"imageStore(destTex, pixel_coords, vec4(input1, 1.0));"
-destImg = Element("destTex", [ShaderType.VEC3], [], "destTex", destImgFunc, ElementType.OUTPUT_ONLY, "output")
+destImg = Element("imageStore", [ShaderType.VEC3], [], "imageStore", destImgFunc, ElementType.OUTPUT_ONLY, "output")
 
 pixelCoordsFunc = f"ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy);"
 pixelCoords = Element("pixel_coords", [], [ShaderType.VEC2], "pixel_coords", pixelCoordsFunc, ElementType.MAIN_FUNCTION_EXECUTABLE, "coordinate")
+
+fragOutput = Element(
+    "FragColor",
+    [ShaderType.VEC3],
+    [],
+    "FragColor",
+    "FragColor = vec4(input1, 1.0);",
+    ElementType.OUTPUT_ONLY,
+    "output"
+)
+
+vertexOutput = Element(
+    "gl_Position",
+    [ShaderType.VEC3],
+    [],
+    "gl_Position",
+    "gl_Position = MVP * vec4(input1, 1.0);",
+    ElementType.OUTPUT_ONLY,
+    "output"
+)
 
 getPixelAtFunc = f"vec3 PLACEHOLDER = texelFetch(input1, ivec2(input2), 0).rgb;"
 getPixelAt = Element("getPixelAt", [ShaderType.SAMPLER2D, ShaderType.VEC2], [ShaderType.VEC3], "rgb", getPixelAtFunc, ElementType.MAIN_FUNCTION_EXECUTABLE, "texture")

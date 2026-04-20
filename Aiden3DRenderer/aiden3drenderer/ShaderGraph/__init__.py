@@ -3,4 +3,4 @@
 Submodules are intentionally not imported at package import time.
 """
 
-__all__ = ["gui", "element", "elements", "shader_type"]
+__all__ = ["gui", "element", "elements", "shader_type", "shader_target"]
