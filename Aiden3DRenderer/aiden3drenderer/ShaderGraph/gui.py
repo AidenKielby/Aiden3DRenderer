@@ -130,9 +130,15 @@ taken_variable_names = ["srcTex", "destTex", "pixel_coords"]
 def on_text_update(sender, app_data, user_data):
     node = user_data
     output = app_data
+    if output in ["true", "True"]:
+        output = "true"
+    if output in ["false", "False"]:
+        output = "false"
 
     node_data = dpg.get_item_user_data(node)
     elm: Element = node_data["element"]
+    if elm.outputs[0] == ShaderType.VEC3:
+        output = f"vec3({output})"
     spliten = elm.function.split("=")
     elm.function = "= ".join([spliten[0], output]) + ";"
 
@@ -144,10 +150,10 @@ def add_element_node(element: Element):
     element = Element(element.name, element.inputs, element.outputs, element.variable_name, element.function, element.type, element.category)
 
     element_function_variable_name = get_unique_name(element.variable_name, taken_variable_names)
-    element.name = element_function_variable_name
+    element.variable_name = element_function_variable_name
     taken_variable_names.append(element_function_variable_name)
 
-    element.function = element.function.replace("PLACEHOLDER", element.name)
+    element.function = element.function.replace("PLACEHOLDER", element.variable_name)
 
     with dpg.node(label=element.name, parent="editor", pos=(200, 50 + node_counter * 20), user_data={"element":element, "conections":[], "index": node_counter-1}) as node:
         if element.type == ElementType.USER_DEFINED:
@@ -208,12 +214,16 @@ def on_link(sender, app_data, user_data):
         dst_elm: Element = dst_node_data["element"]
         src_elm: Element = src_node_data["element"]
 
+        # when node1 -> node2, and node1's output is ANY
         if src_elm.outputs[0] == ShaderType.ANY:
             new_func = dst_elm.inputs[dst_index].value + " " + src_elm.function
 
             new_inp = []
             for i in range(len(src_elm.inputs)):
-                new_inp.append(dst_elm.inputs[dst_index])
+                if src_elm.inputs[i] == ShaderType.ANY:
+                    new_inp.append(dst_elm.inputs[dst_index])
+                else:
+                    new_inp.append(src_elm.inputs[i])
 
             src_elm = Element(src_elm.name, new_inp, [new_inp[0]], src_elm.variable_name, new_func, src_elm.type, src_elm.category)
             src_node_data["element"] = src_elm
@@ -226,16 +236,29 @@ def on_link(sender, app_data, user_data):
 
                 text_item = text_children[0]
 
-                dpg.set_value(text_item, dst_elm.inputs[dst_index].value)
-        
+                if dpg.get_value(text_item) == ShaderType.ANY.value:
+                    dpg.set_value(text_item, dst_elm.inputs[dst_index].value)
+
+        # when node1 -> node2, and node2's input that was connected to is ANY
         if dst_elm.inputs[dst_index] == ShaderType.ANY:
-            new_func = src_elm.outputs[0].value + " " + dst_elm.function
+            if src_elm.outputs[0] != ShaderType.ANY:
+                new_func = src_elm.outputs[0].value + " " + dst_elm.function
+            else:
+                new_func = dst_elm.function
 
             new_inp = []
             for i in range(len(dst_elm.inputs)):
-                new_inp.append(src_elm.outputs[0])
+                if dst_elm.inputs[i] == ShaderType.ANY:
+                    new_inp.append(src_elm.outputs[0])
+                else:
+                    new_inp.append(dst_elm.inputs[i])
+            
+            if src_elm.outputs[0]  == ShaderType.ANY:
+                out = [new_inp[0]]
+            else:
+                out = src_elm.outputs
 
-            dst_elm = Element(dst_elm.name, new_inp, [new_inp[0]], dst_elm.variable_name, new_func, dst_elm.type, dst_elm.category)
+            dst_elm = Element(dst_elm.name, new_inp, out, dst_elm.variable_name, new_func, dst_elm.type, dst_elm.category)
             dst_node_data["element"] = dst_elm
             
             for inp_attr in dpg.get_item_children(dst_node, 1):
@@ -245,8 +268,8 @@ def on_link(sender, app_data, user_data):
                     continue
 
                 text_item = text_children[0]
-
-                dpg.set_value(text_item, src_elm.outputs[0].value)
+                if dpg.get_value(text_item) == ShaderType.ANY.value:
+                    dpg.set_value(text_item, src_elm.outputs[0].value)
         
         new_func = src_elm.function.replace("uniform ", "").replace(";", "")
         src_variable_name = new_func.split(" ")[1]

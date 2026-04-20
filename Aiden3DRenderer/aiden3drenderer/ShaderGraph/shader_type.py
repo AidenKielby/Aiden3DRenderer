@@ -12,6 +12,7 @@ class ShaderType(Enum):
     MAT4    = "mat4"
     SAMPLER2D = "sampler2D"
     ANY     = "any"
+    IF_ANY     = "if any"
 
     @classmethod
     def from_str(cls, label: str):

@@ -3,9 +3,15 @@ from setuptools import setup, find_packages
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
+mac_requires = [
+    "pyobjc-framework-Metal",
+    "pyobjc-framework-Cocoa",
+    "pyobjc-framework-Quartz",
+]
+
 setup(
     name="aiden3drenderer",
-    version="1.12.12",
+    version="1.12.13",
     author="Aiden",
     author_email="headstone.yt@gmail.com",
     description="A real-time 3D function visualizer with a plug-and-play GPU pipeline—write simple compute shaders to create custom effects without dealing with complex rendering internals.",
@@ -41,6 +47,9 @@ setup(
         "pillow>=12.1.0",
         "lxml>=6.0.2"
     ],
+    extras_require={
+        "mac": mac_requires
+    },
     package_data={"aiden3drenderer": ["fonts/*.ttf", "fonts/*.png", "Demo/*"]},
     extras_require={
         "dev": ["pytest>=7.0", "black", "flake8"],
