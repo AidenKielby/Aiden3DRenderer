@@ -8,7 +8,13 @@ import sys
 import importlib
 from importlib import resources
 import numpy as np
-import moderngl
+if sys.platform != "darwin":
+    import moderngl
+else:
+    import objc
+    from Metal import *
+    from Quartz import *
+
 from PIL import Image
 from enum import Enum
 
@@ -231,6 +237,301 @@ void main() {
     }
 
 }
+
+"""
+
+metal_compute_shader = """
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
+
+#include <metal_stdlib>
+#include <simd/simd.h>
+
+using namespace metal;
+
+struct Globals
+{
+    uint tri_count;
+    uint depthView;
+    uint heatMap;
+};
+
+struct Triangle
+{
+    float2 pos1;
+    float2 pos2;
+    float2 pos3;
+    float d1;
+    float d2;
+    float d3;
+    float light_mult;
+    float2 uv1;
+    float2 uv2;
+    float2 uv3;
+    float is_skybox;
+    float texture_index;
+    float pad1;
+    float pad2;
+};
+
+struct triangle_data
+{
+    Triangle tris[1];
+};
+
+
+constant uint3 gl_WorkGroupSize [[maybe_unused]] = uint3(16u, 16u, 1u);
+
+static inline __attribute__((always_inline))
+float _dot(thread const float2& p1, thread const float2& p3, thread const float2& p2)
+{
+    float2 tri_vec = p2 - p1;
+    float2 other_vec = p3 - p1;
+    return (tri_vec.x * other_vec.y) - (tri_vec.y * other_vec.x);
+}
+
+static inline __attribute__((always_inline))
+bool is_point_in_tri(thread const float2& p0, thread const float2& p1, thread const float2& p2, thread const float2& point)
+{
+    float2 param = p0;
+    float2 param_1 = p1;
+    float2 param_2 = point;
+    float d1 = _dot(param, param_1, param_2);
+    float2 param_3 = p1;
+    float2 param_4 = p2;
+    float2 param_5 = point;
+    float d2 = _dot(param_3, param_4, param_5);
+    float2 param_6 = p2;
+    float2 param_7 = p0;
+    float2 param_8 = point;
+    float d3 = _dot(param_6, param_7, param_8);
+    bool has_neg = ((d1 < 0.0) || (d2 < 0.0)) || (d3 < 0.0);
+    bool has_pos = ((d1 > 0.0) || (d2 > 0.0)) || (d3 > 0.0);
+    return !(has_neg && has_pos);
+}
+
+static inline __attribute__((always_inline))
+float cross2d(thread const float2& a, thread const float2& b)
+{
+    return (a.x * b.y) - (a.y * b.x);
+}
+
+static inline __attribute__((always_inline))
+float depth_in_tri(thread const float2& p0, thread const float2& p1, thread const float2& p2, thread const float2& point, thread const float3& depths)
+{
+    float2 v0 = p1 - p0;
+    float2 v1 = p2 - p0;
+    float2 v2 = point - p0;
+    float2 param = v0;
+    float2 param_1 = v1;
+    float total = cross2d(param, param_1);
+    if (abs(total) < 9.9999997473787516355514526367188e-06)
+    {
+        return 9.9999996802856924650656260769173e+37;
+    }
+    float2 param_2 = v2;
+    float2 param_3 = v1;
+    float w1 = cross2d(param_2, param_3) / total;
+    float2 param_4 = v0;
+    float2 param_5 = v2;
+    float w2 = cross2d(param_4, param_5) / total;
+    float w0 = (1.0 - w1) - w2;
+    float depth = ((w0 * depths.x) + (w1 * depths.y)) + (w2 * depths.z);
+    return depth;
+}
+
+kernel void main0(constant uint* spvBufferSizeConstants [[buffer(25)]], constant Globals& globals [[buffer(0)]], device triangle_data& _251 [[buffer(1)]], texture2d<float, access::read_write> destTex [[texture(0)]], texture2d<float> skyTex [[texture(1)]], texture2d_array<float> inTex [[texture(2)]], sampler skyTexSmplr [[sampler(0)]], sampler inTexSmplr [[sampler(1)]], uint3 gl_GlobalInvocationID [[thread_position_in_grid]], uint gl_LocalInvocationIndex [[thread_index_in_threadgroup]])
+{
+    threadgroup Triangle local_tris[256];
+    constant uint& _251BufferSize = spvBufferSizeConstants[1];
+    int2 pixel_coords = int2(gl_GlobalInvocationID.xy);
+    int2 dims = int2(destTex.get_width(), destTex.get_height());
+    bool _216 = pixel_coords.x < dims.x;
+    bool _224;
+    if (_216)
+    {
+        _224 = pixel_coords.y < dims.y;
+    }
+    else
+    {
+        _224 = _216;
+    }
+    bool in_b = _224;
+    float2 p_center = float2(pixel_coords) + float2(0.5);
+    float best_depth = 9.9999996802856924650656260769173e+37;
+    float3 best_color = destTex.read(uint2(pixel_coords)).xyz;
+    uint num_tris = min(globals.tri_count, uint(int((_251BufferSize - 0) / 80)));
+    uint local_id = gl_LocalInvocationIndex;
+    for (uint i = 0u; i < num_tris; i += 256u)
+    {
+        if ((i + local_id) < num_tris)
+        {
+            uint _284 = i + local_id;
+            local_tris[local_id].pos1 = _251.tris[_284].pos1;
+            local_tris[local_id].pos2 = _251.tris[_284].pos2;
+            local_tris[local_id].pos3 = _251.tris[_284].pos3;
+            local_tris[local_id].d1 = _251.tris[_284].d1;
+            local_tris[local_id].d2 = _251.tris[_284].d2;
+            local_tris[local_id].d3 = _251.tris[_284].d3;
+            local_tris[local_id].light_mult = _251.tris[_284].light_mult;
+            local_tris[local_id].uv1 = _251.tris[_284].uv1;
+            local_tris[local_id].uv2 = _251.tris[_284].uv2;
+            local_tris[local_id].uv3 = _251.tris[_284].uv3;
+            local_tris[local_id].is_skybox = _251.tris[_284].is_skybox;
+            local_tris[local_id].texture_index = _251.tris[_284].texture_index;
+            local_tris[local_id].pad1 = _251.tris[_284].pad1;
+            local_tris[local_id].pad2 = _251.tris[_284].pad2;
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        uint limit = min(256u, (num_tris - i));
+        if (in_b)
+        {
+            for (uint j = 0u; j < limit; j++)
+            {
+                float minx = fast::min(fast::min(local_tris[j].pos1.x, local_tris[j].pos2.x), local_tris[j].pos3.x);
+                float maxx = fast::max(fast::max(local_tris[j].pos1.x, local_tris[j].pos2.x), local_tris[j].pos3.x);
+                float miny = fast::min(fast::min(local_tris[j].pos1.y, local_tris[j].pos2.y), local_tris[j].pos3.y);
+                float maxy = fast::max(fast::max(local_tris[j].pos1.y, local_tris[j].pos2.y), local_tris[j].pos3.y);
+                bool _402 = p_center.x < minx;
+                bool _410;
+                if (!_402)
+                {
+                    _410 = p_center.x > maxx;
+                }
+                else
+                {
+                    _410 = _402;
+                }
+                bool _418;
+                if (!_410)
+                {
+                    _418 = p_center.y < miny;
+                }
+                else
+                {
+                    _418 = _410;
+                }
+                bool _426;
+                if (!_418)
+                {
+                    _426 = p_center.y > maxy;
+                }
+                else
+                {
+                    _426 = _418;
+                }
+                if (_426)
+                {
+                    continue;
+                }
+                float2 param = local_tris[j].pos1;
+                float2 param_1 = local_tris[j].pos2;
+                float2 param_2 = local_tris[j].pos3;
+                float2 param_3 = p_center;
+                if (is_point_in_tri(param, param_1, param_2, param_3))
+                {
+                    float3 ds = float3(local_tris[j].d1, local_tris[j].d2, local_tris[j].d3);
+                    float2 param_4 = local_tris[j].pos1;
+                    float2 param_5 = local_tris[j].pos2;
+                    float2 param_6 = local_tris[j].pos3;
+                    float2 param_7 = p_center;
+                    float3 param_8 = ds;
+                    float d = depth_in_tri(param_4, param_5, param_6, param_7, param_8);
+                    if (d < best_depth)
+                    {
+                        best_depth = d;
+                        if (globals.depthView != 0u)
+                        {
+                            float c = (-pow(2.0, (-abs(d)) * 0.75)) + 1.0;
+                            best_color = float3(c);
+                        }
+                        else
+                        {
+                            if (globals.heatMap != 0u)
+                            {
+                                float t = fast::clamp(d * 0.3499999940395355224609375, 0.0, 1.0);
+                                best_color = mix(float3(0.0, 0.0, 1.0), float3(1.0, 0.0, 0.0), t);
+                            }
+                            else
+                            {
+                                bool _519 = (local_tris[j].uv1)[0u] < 0.0;
+                                bool _527;
+                                if (!_519)
+                                {
+                                    _527 = (local_tris[j].uv2)[0u] < 0.0;
+                                }
+                                else
+                                {
+                                    _527 = _519;
+                                }
+                                bool _535;
+                                if (!_527)
+                                {
+                                    _535 = (local_tris[j].uv3)[0u] < 0.0;
+                                }
+                                else
+                                {
+                                    _535 = _527;
+                                }
+                                if (_535)
+                                {
+                                    float c_1 = (-pow(2.0, (-abs(d)) * 0.75)) + 1.0;
+                                    best_color = float3(c_1);
+                                }
+                                else
+                                {
+                                    float3 ws = float3(1.0 / local_tris[j].d1, 1.0 / local_tris[j].d2, 1.0 / local_tris[j].d3);
+                                    float3 us = float3((local_tris[j].uv1)[0u] * ws.x, (local_tris[j].uv2)[0u] * ws.y, (local_tris[j].uv3)[0u] * ws.z);
+                                    float3 vs = float3((local_tris[j].uv1)[1u] * ws.x, (local_tris[j].uv2)[1u] * ws.y, (local_tris[j].uv3)[1u] * ws.z);
+                                    float2 param_9 = local_tris[j].pos1;
+                                    float2 param_10 = local_tris[j].pos2;
+                                    float2 param_11 = local_tris[j].pos3;
+                                    float2 param_12 = p_center;
+                                    float3 param_13 = us;
+                                    float u_over_w = depth_in_tri(param_9, param_10, param_11, param_12, param_13);
+                                    float2 param_14 = local_tris[j].pos1;
+                                    float2 param_15 = local_tris[j].pos2;
+                                    float2 param_16 = local_tris[j].pos3;
+                                    float2 param_17 = p_center;
+                                    float3 param_18 = vs;
+                                    float v_over_w = depth_in_tri(param_14, param_15, param_16, param_17, param_18);
+                                    float2 param_19 = local_tris[j].pos1;
+                                    float2 param_20 = local_tris[j].pos2;
+                                    float2 param_21 = local_tris[j].pos3;
+                                    float2 param_22 = p_center;
+                                    float3 param_23 = ws;
+                                    float one_over_w = depth_in_tri(param_19, param_20, param_21, param_22, param_23);
+                                    float2 uv = float2(u_over_w / one_over_w, 1.0 - (v_over_w / one_over_w));
+                                    float4 color = float4(1.0);
+                                    float3 real_col = float3(1.0);
+                                    if (local_tris[j].is_skybox > 0.5)
+                                    {
+                                        color = skyTex.sample(skyTexSmplr, uv, level(0.0));
+                                        real_col = float3(color.x, color.y, color.z);
+                                        real_col = (best_color * (1.0 - color.w)) + (real_col * color.w);
+                                    }
+                                    else
+                                    {
+                                        uint slice = uint(local_tris[j].texture_index);
+                                        color = inTex.sample(inTexSmplr, uv, slice);
+                                        real_col = float3(color.x, color.y, color.z);
+                                        real_col = (best_color * (1.0 - color.w)) + (real_col * color.w);
+                                    }
+                                    best_color = float3(real_col.x * local_tris[j].light_mult, real_col.y * local_tris[j].light_mult, real_col.z * local_tris[j].light_mult);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    if (in_b)
+    {
+        destTex.write(float4(best_color, 1.0), uint2(pixel_coords));
+    }
+}
+
 
 """
 

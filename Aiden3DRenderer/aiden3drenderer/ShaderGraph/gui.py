@@ -229,13 +229,23 @@ def on_link(sender, app_data, user_data):
                 dpg.set_value(text_item, dst_elm.inputs[dst_index].value)
         
         if dst_elm.inputs[dst_index] == ShaderType.ANY:
-            new_func = src_elm.outputs[0].value + " " + dst_elm.function
+            if src_elm.outputs[0]  == ShaderType.ANY:
+                new_func = src_elm.outputs[0].value + " " + dst_elm.function
+            else:
+                new_func = dst_elm.function
 
             new_inp = []
             for i in range(len(dst_elm.inputs)):
-                new_inp.append(src_elm.outputs[0])
-
-            dst_elm = Element(dst_elm.name, new_inp, [new_inp[0]], dst_elm.variable_name, new_func, dst_elm.type, dst_elm.category)
+                if dst_elm.inputs[i] == ShaderType.ANY:
+                    new_inp.append(src_elm.outputs[0])
+                else:
+                    new_inp.append(dst_elm.inputs[i])
+            
+            if src_elm.outputs[0]  == ShaderType.ANY:
+                out = [new_inp[0]]
+            else:
+                out = dst_elm.outputs
+            dst_elm = Element(dst_elm.name, new_inp, out, dst_elm.variable_name, new_func, dst_elm.type, dst_elm.category)
             dst_node_data["element"] = dst_elm
             
             for inp_attr in dpg.get_item_children(dst_node, 1):
@@ -245,8 +255,8 @@ def on_link(sender, app_data, user_data):
                     continue
 
                 text_item = text_children[0]
-
-                dpg.set_value(text_item, src_elm.outputs[0].value)
+                if dpg.get_value(text_item) == ShaderType.ANY.value:
+                    dpg.set_value(text_item, src_elm.outputs[0].value)
         
         new_func = src_elm.function.replace("uniform ", "").replace(";", "")
         src_variable_name = new_func.split(" ")[1]

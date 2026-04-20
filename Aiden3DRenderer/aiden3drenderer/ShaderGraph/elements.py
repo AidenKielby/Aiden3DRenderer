@@ -39,12 +39,12 @@ vertexOutput = Element(
 getPixelAtFunc = f"vec3 PLACEHOLDER = texelFetch(input1, ivec2(input2), 0).rgb;"
 getPixelAt = Element("getPixelAt", [ShaderType.SAMPLER2D, ShaderType.VEC2], [ShaderType.VEC3], "rgb", getPixelAtFunc, ElementType.MAIN_FUNCTION_EXECUTABLE, "texture")
 
-equalsFunc = f"PLACEHOLDER = input1 == input2;"
+equalsFunc = f"bool PLACEHOLDER = input1 == input2;"
 equals = Element("equals", [ShaderType.ANY, ShaderType.ANY], [ShaderType.BOOL], "equals_out", equalsFunc, ElementType.MAIN_FUNCTION_EXECUTABLE, "comparison")
 
-lessThan = Element("lessThan", [ShaderType.ANY, ShaderType.ANY], [ShaderType.BOOL], "lt_out", "PLACEHOLDER = input1 < input2;", ElementType.MAIN_FUNCTION_EXECUTABLE, "comparison")
+lessThan = Element("lessThan", [ShaderType.ANY, ShaderType.ANY], [ShaderType.BOOL], "lt_out", "bool PLACEHOLDER = input1 < input2;", ElementType.MAIN_FUNCTION_EXECUTABLE, "comparison")
 
-greaterThan = Element("greaterThan", [ShaderType.ANY, ShaderType.ANY], [ShaderType.BOOL], "gt_out", "PLACEHOLDER = input1 > input2;", ElementType.MAIN_FUNCTION_EXECUTABLE, "comparison")
+greaterThan = Element("greaterThan", [ShaderType.ANY, ShaderType.ANY], [ShaderType.BOOL], "gt_out", "bool PLACEHOLDER = input1 > input2;", ElementType.MAIN_FUNCTION_EXECUTABLE, "comparison")
 
 select = Element("mix", [ShaderType.ANY, ShaderType.ANY, ShaderType.FLOAT], [ShaderType.ANY], "mix_out", "PLACEHOLDER = mix(input1, input2, input3);", ElementType.MAIN_FUNCTION_EXECUTABLE, "mix")
 
@@ -56,13 +56,13 @@ multiply = Element("multiply", [ShaderType.ANY, ShaderType.ANY], [ShaderType.ANY
 
 divide = Element("divide", [ShaderType.ANY, ShaderType.ANY], [ShaderType.ANY], "div_out", "PLACEHOLDER = input1 / input2;", ElementType.MAIN_FUNCTION_EXECUTABLE, "math")
 
-dotProduct = Element("dot", [ShaderType.VEC3, ShaderType.VEC3], [ShaderType.FLOAT], "dot_out", "vec3 PLACEHOLDER = dot(input1, input2);", ElementType.MAIN_FUNCTION_EXECUTABLE, "vector")
+dotProduct = Element("dot", [ShaderType.VEC3, ShaderType.VEC3], [ShaderType.FLOAT], "dot_out", "float PLACEHOLDER = dot(input1, input2);", ElementType.MAIN_FUNCTION_EXECUTABLE, "vector")
 
 crossProduct = Element("cross", [ShaderType.VEC3, ShaderType.VEC3], [ShaderType.VEC3], "cross_out", "vec3 PLACEHOLDER = cross(input1, input2);", ElementType.MAIN_FUNCTION_EXECUTABLE, "vector")
 
 normalize = Element("normalize", [ShaderType.VEC3], [ShaderType.VEC3], "norm_out", "vec3 PLACEHOLDER = normalize(input1);", ElementType.MAIN_FUNCTION_EXECUTABLE, "vector")
 
-lengthVec = Element("length", [ShaderType.VEC3], [ShaderType.FLOAT], "len_out", "vec3 PLACEHOLDER = length(input1);", ElementType.MAIN_FUNCTION_EXECUTABLE, "vector")
+lengthVec = Element("length", [ShaderType.VEC3], [ShaderType.FLOAT], "len_out", "float PLACEHOLDER = length(input1);", ElementType.MAIN_FUNCTION_EXECUTABLE, "vector")
 
 minVal = Element("min", [ShaderType.ANY, ShaderType.ANY], [ShaderType.ANY], "min_out", "PLACEHOLDER = min(input1, input2);", ElementType.MAIN_FUNCTION_EXECUTABLE, "math")
 
