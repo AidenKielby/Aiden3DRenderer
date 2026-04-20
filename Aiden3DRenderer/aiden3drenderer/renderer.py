@@ -27,6 +27,7 @@ from .entity import Entity
 from .custom_shader import CustomShader
 
 CUSTOM_SHAPES = {}
+CUSTOM_EVENTS = {}
 
 def register_shape(name: str, key=None, is_animated: bool = False, color: tuple[int] = None):
     def decorator(func):
@@ -39,7 +40,14 @@ def register_shape(name: str, key=None, is_animated: bool = False, color: tuple[
         return func
     return decorator
 
-
+def register_renderer_event(key):
+    def decorator(func):
+        if key in CUSTOM_EVENTS:
+            CUSTOM_EVENTS[key].append(func)
+        else:
+            CUSTOM_EVENTS[key] = [func]
+        return func
+    return decorator
 
 class renderer_type(Enum):
     RASTERIZE = "rasterize"
@@ -2403,6 +2411,12 @@ class Renderer3D:
             keys = pygame.key.get_pressed()
             
             self.camera.update(keys)
+
+            # go through the custom events and do the function associated with it
+            for key_need_press in CUSTOM_EVENTS:
+                if keys[key_need_press]:
+                    for func in CUSTOM_EVENTS[key_need_press]:
+                        func()
             
             self.generate_shape_from_key_press(keys, self.animation_time)
             if not self.using_obj_filetype_format:
@@ -2525,6 +2539,12 @@ class Renderer3D:
         keys = pygame.key.get_pressed()
         
         self.camera.update(keys)
+        # go through the custom events and do the function associated with it
+        for key_need_press in CUSTOM_EVENTS:
+            if keys[key_need_press]:
+                for func in CUSTOM_EVENTS[key_need_press]:
+                    func()
+            
         
         self.generate_shape_from_key_press(keys, self.animation_time)
         if not self.using_obj_filetype_format:
