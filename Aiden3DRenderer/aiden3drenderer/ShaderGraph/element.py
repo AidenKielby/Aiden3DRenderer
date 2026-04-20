@@ -18,3 +18,4 @@ class Element:
         self.function = function
         self.type = type
         self.category = category
+        self.last_missing_input_index = None
