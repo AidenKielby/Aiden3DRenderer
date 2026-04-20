@@ -27,7 +27,7 @@ Built-in shape generators (signature and short description)
 - `generate_megacity(grid_size: int = 80)` — procedural city block generator.
 - `generate_alien_landscape(grid_size: int = 60, time: float = 0)` — composite animated alien terrain.
 - `generate_double_helix(length: int = 60, time: float = 0)` — DNA-like double helix (animated).
-- `generate_mandelbulb_slice(resolution: int = 50, z_slice: float = 0, max_iterations: int = 10)` — approximate 3D fractal slice.
+- `generate_mandelbulb_slice(resolution: int = 140, z_slice: float = 0, max_iterations: int = 28, power: int = 8, view_scale: float = 2.2)` — high-detail Mandelbulb escape-time heightfield slice.
 - `generate_klein_bottle(resolution: int = 40)` — Klein bottle parametric surface.
 - `generate_trefoil_knot(resolution: int = 50)` — trefoil knot geometry.
 - `generate_plane(size: int = 5, rot_x: float = 0, rot_y: float = 0, rot_z: float = 0)` — flat grid centered at origin; rotations are in radians.
@@ -61,3 +61,4 @@ Notes
 - Generators are purely functional and return their grid; they do not mutate renderer state themselves.
 - `is_animated=True` implies the renderer will call the function with a `time` keyword argument each frame.
 - For equation-driven dynamic shape registration, see [Math Shape](math_shape.md).
+- Performance scales with grid resolution. For dense generators like `generate_megacity` and `generate_mandelbulb_slice`, runtime is approximately O(n^2) over the resolution grid, with Mandelbulb adding an inner iteration loop O(max_iterations).

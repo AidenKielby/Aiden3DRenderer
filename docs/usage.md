@@ -35,3 +35,7 @@ Renderer fields you may want to tune
 
 Platform notes
 - On macOS compute shaders may not be available — `RASTERIZE` mode is only for OpenGL 4.3+ capable systems.
+
+Shader authoring tool
+- The package includes a node-based shader authoring UI exposed via the `shader-graph` console command.
+- See [Shader Graph](shader_graph.md) for dependency requirements and export behavior.

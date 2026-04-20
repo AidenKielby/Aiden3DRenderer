@@ -11,6 +11,7 @@ Sections:
 - [Math Shape Guide](math_shape.md)
 - [Entities Guide](entities.md)
 - [Custom Shaders Guide](custom_shaders.md)
+- [Shader Graph Guide](shader_graph.md)
 - [Material Guide](material.md)
 - [Audit Report](audit_report.md)
 

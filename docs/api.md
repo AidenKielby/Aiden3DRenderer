@@ -14,6 +14,7 @@ Quick links (primary user-facing modules):
 - [Shapes](shapes.md) — built-in `@register_shape` functions (procedural shapes)
 - [Math Shape](math_shape.md) — `MathShape` equation-based shape registration helper
 - [Custom Shaders](custom_shaders.md) — `CustomShader` (compute shader helper)
+- [Shader Graph](shader_graph.md) — node-based GLSL authoring tools (`ShaderGraph.gui` and related node definitions)
 - [Video Renderer](video_renderer.md) — `VideoRenderer3D`, `VideoRendererObject` (see audit notes)
 - [Demo Module](demo.md) — packaged demo entrypoints (`demo`, `demo_inv`, `demo_mac`)
 - [Bounding Boxes](bounding_box.md) — `get_bounding_box`
@@ -31,18 +32,21 @@ Public surface (as imported into package root by aiden3drenderer.__init__):
 - `MathShape` — equation-driven shape registration helper. See [Math Shape](math_shape.md).
 - `physics`, `obj_loader`, `dae_loader`, `bounding_box` — loader/utility modules; see their pages.
 - `VideoRenderer3D`, `VideoRendererObject` — helper for offline video rendering (high-drift; see [audit_report](audit_report.md)).
-- Console-script demo entrypoints are defined in `setup.py` and currently map to `aiden3drenderer.Demo.silly_skull`. See [Demo Module](demo.md).
+- Console-script entrypoints are defined in `setup.py` and currently include:
+	- `aiden3d-demo`, `inverted-aiden3d-demo`, `aiden3d-mac` -> `aiden3drenderer.Demo.silly_skull`
+	- `shader-graph` -> `aiden3drenderer.ShaderGraph.gui:run`
+	See [Demo Module](demo.md) and [Shader Graph](shader_graph.md).
 
 Export caveat
 -------------
 
-`MathShape` is currently imported at package root in `__init__.py`, but it is missing from `__all__`. Direct imports work (`from aiden3drenderer import MathShape`), but wildcard imports (`from aiden3drenderer import *`) will not include it until `__all__` is updated.
+`MathShape` is now present in `__all__`. One minor export quirk remains: `object_type` appears twice in `__all__`, which is harmless at runtime but indicates duplicate list maintenance.
 
 Packaging metadata note
 -----------------------
 
 This repository currently defines package metadata in `setup.py` (version, dependencies, console scripts). No `pyproject.toml` file is present.
 
-Current observed package version is `1.11.1` in both `aiden3drenderer/__init__.py` and `setup.py`.
+Current observed package version is `1.12.11` in both `aiden3drenderer/__init__.py` and `setup.py`.
 
 If a page mentions an exception or platform requirement (OpenGL, lxml, PIL/Pillow), that reflects an explicit raise in the code path or a dependency used by the implementation.
