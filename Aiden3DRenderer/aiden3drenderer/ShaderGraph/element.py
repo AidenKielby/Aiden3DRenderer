@@ -10,7 +10,7 @@ class ElementType(Enum):
     USER_DEFINED = "user defined"
 
 class Element:
-    def __init__(self, name: str, inputs: list[type], outputs: list[type], variable_name: str, function: str, type: ElementType, category: str = "misc"):
+    def __init__(self, name: str, inputs: list[type], outputs: list[type], variable_name: str, function: str, type: ElementType, category: str = "misc", tags: list = None):
         self.name = name
         self.inputs = inputs
         self.outputs = outputs
@@ -18,4 +18,4 @@ class Element:
         self.function = function
         self.type = type
         self.category = category
-        self.last_missing_input_index = None
+        self.tags = tags

@@ -42,9 +42,9 @@ getPixelAt = Element("FetchTexel", [ShaderType.SAMPLER2D, ShaderType.VEC2], [Sha
 equalsFunc = f"bool PLACEHOLDER = input1 == input2;"
 equals = Element("Equal", [ShaderType.ANY, ShaderType.ANY], [ShaderType.BOOL], "equals_out", equalsFunc, ElementType.MAIN_FUNCTION_EXECUTABLE, "compare")
 
-lessThan = Element("Less", [ShaderType.ANY, ShaderType.ANY], [ShaderType.BOOL], "lt_out", "bool PLACEHOLDER = input1 < input2;", ElementType.MAIN_FUNCTION_EXECUTABLE, "compare")
+lessThan = Element("Less", [ShaderType.FLOAT, ShaderType.FLOAT], [ShaderType.BOOL], "lt_out", "bool PLACEHOLDER = input1 < input2;", ElementType.MAIN_FUNCTION_EXECUTABLE, "compare")
 
-greaterThan = Element("Greater", [ShaderType.ANY, ShaderType.ANY], [ShaderType.BOOL], "gt_out", "bool PLACEHOLDER = input1 > input2;", ElementType.MAIN_FUNCTION_EXECUTABLE, "compare")
+greaterThan = Element("Greater", [ShaderType.FLOAT, ShaderType.FLOAT], [ShaderType.BOOL], "gt_out", "bool PLACEHOLDER = input1 > input2;", ElementType.MAIN_FUNCTION_EXECUTABLE, "compare")
 
 select = Element("Mix", [ShaderType.ANY, ShaderType.ANY, ShaderType.FLOAT], [ShaderType.ANY], "mix_out", "PLACEHOLDER = mix(input1, input2, input3);", ElementType.MAIN_FUNCTION_EXECUTABLE, "blend")
 
@@ -103,3 +103,4 @@ floatToInt = Element("FloatToInt", [ShaderType.FLOAT], [ShaderType.INT], "float_
 intToFloat = Element("IntToFloat", [ShaderType.INT], [ShaderType.FLOAT], "int_to_float", "float PLACEHOLDER = float(input1);", ElementType.MAIN_FUNCTION_EXECUTABLE, "convert")
 
 ternaryIf = Element("Ternary", [ShaderType.BOOL, ShaderType.ANY, ShaderType.ANY], [ShaderType.ANY], "terIf", "PLACEHOLDER = input1 ? input2 : input3;", ElementType.MAIN_FUNCTION_EXECUTABLE, "flow")
+notElm = Element("Not", [ShaderType.BOOL], [ShaderType.BOOL], "not_out", "bool PLACEHOLDER = !input1;", ElementType.MAIN_FUNCTION_EXECUTABLE, "flow")
