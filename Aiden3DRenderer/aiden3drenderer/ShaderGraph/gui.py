@@ -218,6 +218,8 @@ def on_link(sender, app_data, user_data):
         if src_elm.outputs[0] == ShaderType.ANY:
             new_func = dst_elm.inputs[dst_index].value + " " + src_elm.function
 
+            print(new_func)
+
             new_inp = []
             for i in range(len(src_elm.inputs)):
                 if src_elm.inputs[i] == ShaderType.ANY:
@@ -241,11 +243,11 @@ def on_link(sender, app_data, user_data):
 
         # when node1 -> node2, and node2's input that was connected to is ANY
         if dst_elm.inputs[dst_index] == ShaderType.ANY:
-            if src_elm.outputs[0] != ShaderType.ANY:
+            if src_elm.outputs[0] != ShaderType.ANY and dst_elm.outputs[0] == ShaderType.ANY:
                 new_func = src_elm.outputs[0].value + " " + dst_elm.function
             else:
                 new_func = dst_elm.function
-
+            print(new_func)
             new_inp = []
             for i in range(len(dst_elm.inputs)):
                 if dst_elm.inputs[i] == ShaderType.ANY:
