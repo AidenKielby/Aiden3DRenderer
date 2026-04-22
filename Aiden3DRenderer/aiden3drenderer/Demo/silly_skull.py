@@ -16,8 +16,8 @@ dammage_shader = """
 #version 430
 layout(local_size_x = 16, local_size_y = 16) in;
 
-layout(rgba32f, binding = 0) uniform image2D destTex;
-uniform sampler2D srcTex;
+layout(rgba32f, binding = 1) uniform image2D destTex;
+layout(binding = 0) uniform sampler2D srcTex;
 uniform sampler2D damageImage;
 uniform float distance;
 
@@ -47,7 +47,7 @@ invert_colors_shader = """
 #version 430
 layout(local_size_x = 16, local_size_y = 16) in;
 
-layout(rgba32f, binding = 0) uniform image2D destTex;
+layout(rgba32f, binding = 1) uniform image2D destTex;
 uniform sampler2D srcTex;
 
 void main() {
@@ -66,7 +66,7 @@ void main() {
 
 def demo_inv():
     renderer = Renderer3D(600, 600, "Skull following you and yeah", True)
-    renderer.render_type = renderer_type.RASTERIZE
+    renderer.set_render_type(renderer_type.RASTERIZE)
     renderer.using_obj_filetype_format = True
 
     # Resolve demo assets from package resources so the demo works when installed
@@ -94,8 +94,7 @@ def demo_inv():
     renderer.shaders.append({
         'shader': shader,
         'inputs': [
-            ("distance", lambda: float(np.linalg.norm(np.array(renderer.entities[0].variables["dist_to_player"])))),
-            ("srcTex", lambda: 2),
+            ("distance", lambda: float(np.linalg.norm(np.array(renderer.entities[0].variables["dist_to_player"]))))
         ],
     })
 
@@ -110,7 +109,7 @@ def demo_inv():
 
 def demo():
     renderer = Renderer3D(600, 600, "Skull following you and yeah", True)
-    renderer.render_type = renderer_type.RASTERIZE
+    renderer.set_render_type(renderer_type.RASTERIZE)
     renderer.using_obj_filetype_format = True
 
     # Resolve demo assets from package resources so the demo works when installed
@@ -139,7 +138,6 @@ def demo():
         'shader': shader,
         'inputs': [
             ("distance", lambda: float(np.linalg.norm(np.array(renderer.entities[0].variables["dist_to_player"])))),
-            ("srcTex", lambda: 2),
         ],
     })
 

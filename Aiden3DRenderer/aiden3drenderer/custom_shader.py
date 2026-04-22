@@ -10,6 +10,9 @@ glsl_type_to_bytes = {
     "vec4": 16
 }
 
+# the layout for dstTex MUST be binding = 1!
+# so that would look like this: "layout(rgba32f, binding = 1) uniform image2D destTex;"
+# Also! Binding for srcTex is to be not defined or set to 0!
 class CustomShader:
     def __init__(self, shader_code: str, context=None):
         self.shader_code = shader_code
@@ -23,6 +26,7 @@ class CustomShader:
 
         self.buffer_objects = {}
         self.textures = {}
+        self.texture_info = []
 
     def get_buffers(self):
         bufs = []
@@ -57,14 +61,15 @@ class CustomShader:
             i += 1
         return bufs
 
-    def add_texture(self, texture_path: str, location: int, texture_name: str):
+    def add_texture(self, texture_path: str, location: int, texture_name: str, verbose: bool = False):
         try:
             image = Image.open(texture_path)
         except FileNotFoundError:
             raise FileNotFoundError("Error: Image file not found.")
         
+        self.texture_info.append((texture_path, location, texture_name))
         image = image.convert('RGBA')
-        image.transpose(Image.FLIP_TOP_BOTTOM)
+        image = image.transpose(Image.FLIP_TOP_BOTTOM)
         image_data = image.tobytes('raw', 'RGBA')
         size = image.size
 
@@ -90,7 +95,8 @@ class CustomShader:
 
         texture.use(location=location)
         self.compute_shader[texture_name] = location
-        print(f"texture: {texture_name} using binding {location}")
+        if verbose:
+            print(f"texture: {texture_name} using binding {location}")
 
         return texture
     
