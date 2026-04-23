@@ -735,6 +735,7 @@ class Renderer3D:
 
         self.last_present_tex = self.output_tex
         self.pause_img = None
+        self.raster_selected = False
 
         def exit_button():
             pygame.quit()
@@ -751,9 +752,11 @@ class Renderer3D:
             self.show_settings_menu = False
 
         def set_render_mesh():
+            self.raster_selected = False
             self.set_render_type(renderer_type.MESH)
 
         def set_render_fill():
+            self.raster_selected = False
             self.set_render_type(renderer_type.POLYGON_FILL)
 
         def set_render_raster():
@@ -1217,20 +1220,21 @@ class Renderer3D:
         return last_output_binding
 
     def capture_pause_snapshot(self):
-        self.ctx.finish()
-        rw, rh = self.rasterization_size
-        raw_data = self.last_present_tex.read()
-        img_array = np.frombuffer(raw_data, dtype='f4').reshape((rh, rw, 4))
-        img_uint8 = (np.clip(img_array, 0.0, 1.0) * 255).astype('uint8')
-        img_uint8[..., 3] = 255
-        img_uint8 = img_uint8[..., [2, 1, 0, 3]] 
+        if self.render_type == renderer_type.RASTERIZE:
+            self.ctx.finish()
+            rw, rh = self.rasterization_size
+            raw_data = self.last_present_tex.read()
+            img_array = np.frombuffer(raw_data, dtype='f4').reshape((rh, rw, 4))
+            img_uint8 = (np.clip(img_array, 0.0, 1.0) * 255).astype('uint8')
+            img_uint8[..., 3] = 255
+            img_uint8 = img_uint8[..., [2, 1, 0, 3]] 
 
-        image_surface = pygame.image.frombuffer(img_uint8.tobytes(), (self.rasterization_size[0], self.rasterization_size[1]), 'RGBA')
-        # Ensure the destination surface matches requested size (fixes resize bug)
-        if self.upscaled_surface.get_size() != (self.width, self.height):
-            self.upscaled_surface = pygame.Surface((self.width, self.height)).convert()
-        pygame.transform.scale(image_surface, (self.width, self.height), self.upscaled_surface)
-        self.pause_img = image_surface
+            image_surface = pygame.image.frombuffer(img_uint8.tobytes(), (self.rasterization_size[0], self.rasterization_size[1]), 'RGBA')
+            # Ensure the destination surface matches requested size (fixes resize bug)
+            if self.upscaled_surface.get_size() != (self.width, self.height):
+                self.upscaled_surface = pygame.Surface((self.width, self.height)).convert()
+            pygame.transform.scale(image_surface, (self.width, self.height), self.upscaled_surface)
+            self.pause_img = image_surface
 
     def signed_area_2d(self, p0, p1, p2):
         return ((p1[0] - p0[0]) * (p2[1] - p0[1])) - ((p1[1] - p0[1]) * (p2[0] - p0[0]))
@@ -1248,6 +1252,7 @@ class Renderer3D:
     def set_render_type(self, type: renderer_type):
         self.render_type = type
         if type == renderer_type.RASTERIZE:
+            self.raster_selected = True
             if self.resizable_window:
                 self.screen = pygame.display.set_mode((self.width, self.height), pygame.OPENGL | pygame.DOUBLEBUF, pygame.RESIZABLE)
             else:
@@ -2136,6 +2141,8 @@ class Renderer3D:
                     self.ctx.finish()
                 except Exception:
                     pass
+
+            self.last_present_tex = self.output_tex
             
             # n is number of triangles processed
             last_binding = self.run_compute_shaders(n)
@@ -2565,14 +2572,15 @@ class Renderer3D:
             self.projected_vertices_faces_list = []
 
             if self.show_pause_menu:
-                if self.pause_img is None:
+                if self.pause_img is None and self.raster_selected:
                     self.capture_pause_snapshot()
                     self.set_render_type(renderer_type.POLYGON_FILL)
-                self.screen.blit(self.upscaled_surface, (0, 0))
+                if self.pause_img is not None and self.raster_selected:
+                    self.screen.blit(self.upscaled_surface, (0, 0))
             else:
-                if self.pause_img is not None:
+                if self.raster_selected and self.pause_img is not None:
                     self.set_render_type(renderer_type.RASTERIZE)
-                    self.pause_img = None
+                self.pause_img = None
             
             for button in self.pause_buttons:
                 button.toggled = False

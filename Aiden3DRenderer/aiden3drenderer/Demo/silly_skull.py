@@ -109,7 +109,7 @@ def demo_inv():
 
 def demo():
     renderer = Renderer3D(600, 600, "Skull following you and yeah", True)
-    renderer.set_render_type(renderer_type.RASTERIZE)
+    renderer.set_render_type(renderer_type.MESH)
     renderer.using_obj_filetype_format = True
 
     # Resolve demo assets from package resources so the demo works when installed
