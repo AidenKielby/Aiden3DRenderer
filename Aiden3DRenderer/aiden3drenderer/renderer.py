@@ -54,6 +54,31 @@ class renderer_type(Enum):
     POLYGON_FILL = "polygon_fill"
     MESH = "mesh"
 
+glsl_frag_shader = """
+#version 330
+
+uniform sampler2D tex;
+
+in vec2 uv;
+out vec4 fragColor;
+
+void main() {
+    fragColor = texture(tex, vec2(uv.x, 1-uv.y));
+}
+"""
+
+glsl_vert_shader = """
+#version 330
+
+in vec2 in_pos;
+out vec2 uv;
+
+void main() {
+    uv = (in_pos + 1.0) * 0.5;
+    gl_Position = vec4(in_pos, 0.0, 1.0);
+}
+"""
+
 compute_shader_for_rasterization = """
 #version 430
 
@@ -86,8 +111,8 @@ layout(std430, binding = 0) buffer triangle_data {
 
 layout(rgba32f, binding = 0) uniform image2D destTex;
 
-uniform sampler2DArray inTex;
-uniform sampler2D skyTex;
+layout(binding = 1) uniform sampler2DArray inTex;
+layout(binding = 2) uniform sampler2D skyTex;
 uniform uint tri_count;
 
 uniform bool depthView;
@@ -564,10 +589,6 @@ class Renderer3D:
         self.height = height
         self.half_w = width // 2
         self.half_h = height // 2
-        if resizable_window:
-            self.screen = pygame.display.set_mode((width, height), pygame.RESIZABLE)
-        else:
-            self.screen = pygame.display.set_mode((width, height))
         pygame.display.set_caption(title)
         
         self.camera = Camera()
@@ -582,8 +603,19 @@ class Renderer3D:
         self.projected = None
 
         self.is_starting = True
+        self.resizable_window = resizable_window
 
         self.render_type = renderer_type.MESH
+        if self.render_type == renderer_type.RASTERIZE:
+            if resizable_window:
+                self.screen = pygame.display.set_mode((width, height), pygame.OPENGL | pygame.DOUBLEBUF, pygame.RESIZABLE)
+            else:
+                self.screen = pygame.display.set_mode((width, height), pygame.OPENGL | pygame.DOUBLEBUF)
+        else:
+            if resizable_window:
+                self.screen = pygame.display.set_mode((width, height), pygame.RESIZABLE)
+            else:
+                self.screen = pygame.display.set_mode((width, height))
         self.depth_view_enabled = False
         self.heat_map_enabled = False
         self.show_debug_fps = False
@@ -628,13 +660,31 @@ class Renderer3D:
             self._default_shape_names = after - before
             self._default_shapes_loaded = bool(self._default_shape_names)
 
-        self.ctx = moderngl.create_context(standalone=True)
+        if self.render_type == renderer_type.RASTERIZE:
+            self.ctx = moderngl.create_context()
+        else:
+            self.ctx = moderngl.create_context(standalone=True)
         
         if sys.platform != "darwin":
             self.compute_shader_container = CustomShader(compute_shader_for_rasterization, self.ctx)
             self.compute_shader = self.compute_shader_container.compute_shader
             self.compute_shader["depthView"].value = False
             self.compute_shader["heatMap"].value = False
+
+            self.blit_prog = self.ctx.program(
+                vertex_shader=glsl_vert_shader,
+                fragment_shader=glsl_frag_shader
+            )
+            self.blit_prog["tex"].value = 0
+
+            self.blit_vbo = self.ctx.buffer(np.array([
+                -1.0, -1.0,
+                1.0, -1.0,
+                -1.0,  1.0,
+                1.0,  1.0,
+            ], dtype="f4"))
+
+            self.blit_vao = self.ctx.simple_vertex_array(self.blit_prog, self.blit_vbo, "in_pos")
         else:
             self.compute_shader = None
         
@@ -660,6 +710,9 @@ class Renderer3D:
         self._output_clear_rgba = np.ones((rh, rw, 4), dtype=np.float32)
         self.upscaled_surface = pygame.Surface((self.width, self.height)).convert()
 
+        self.output_tex.filter = (moderngl.NEAREST, moderngl.NEAREST)
+        self.alt.filter = (moderngl.NEAREST, moderngl.NEAREST)
+
         self.raster_half_w = self.rasterization_size[0] // 2
         self.raster_half_h = self.rasterization_size[1] // 2
 
@@ -680,6 +733,10 @@ class Renderer3D:
                 self.shape_material = Material("shapeMat", None, None)
                 self.shape_material = self.add_material(self.shape_material)
 
+        self.last_present_tex = self.output_tex
+        self.pause_img = None
+        self.raster_selected = False
+
         def exit_button():
             pygame.quit()
             sys.exit()
@@ -695,9 +752,11 @@ class Renderer3D:
             self.show_settings_menu = False
 
         def set_render_mesh():
+            self.raster_selected = False
             self.set_render_type(renderer_type.MESH)
 
         def set_render_fill():
+            self.raster_selected = False
             self.set_render_type(renderer_type.POLYGON_FILL)
 
         def set_render_raster():
@@ -961,7 +1020,7 @@ class Renderer3D:
 
                 self.mesh_button.set_rect((settings_col_w, self.btn_h), (settings_x_left, self.y0 + (self.btn_h + self.gap) * 0))
                 self.fill_button.set_rect((settings_col_w, self.btn_h), (settings_x_right, self.y0 + (self.btn_h + self.gap) * 0))
-                self.raster_button.set_rect((settings_col_w, self.btn_h), (settings_x_left, self.y0 + (self.btn_h + self.gap) * 1))
+                #self.raster_button.set_rect((settings_col_w, self.btn_h), (settings_x_left, self.y0 + (self.btn_h + self.gap) * 1))
                 self.depth_button.set_rect((settings_col_w, self.btn_h), (settings_x_left, self.y0 + (self.btn_h + self.gap) * 2))
                 self.heat_button.set_rect((settings_col_w, self.btn_h), (settings_x_right, self.y0 + (self.btn_h + self.gap) * 1))
 
@@ -1002,6 +1061,9 @@ class Renderer3D:
             if self.alt is not None:
                 self.alt.release()
             self.alt = self.ctx.texture((width, height), 4, dtype='f4')
+
+            self.output_tex.filter = (moderngl.NEAREST, moderngl.NEAREST)
+            self.alt.filter = (moderngl.NEAREST, moderngl.NEAREST)
 
             self._output_clear_rgba = np.ones((height, width, 4), dtype=np.float32)
 
@@ -1063,75 +1125,11 @@ class Renderer3D:
         pygame.draw.rect(self.screen, (20, 20, 20), bg_rect, 1)
         self.screen.blit(fps_text, fps_text.get_rect(center=bg_rect.center))
 
-    def _attach_textures_for_shader(self, shader_entry):
-        shader = shader_entry.get('shader')
-        inputs = shader_entry.get('inputs', [])
-        created_textures = []
-        if not inputs:
-            return created_textures
-
-        imgs = []
-        for p in inputs:
-            try:
-                img = Image.open(p).convert('RGBA')
-                imgs.append(img)
-            except Exception:
-                continue
-
-        if not imgs:
-            return created_textures
-
-        w, h = imgs[0].size
-        if len(imgs) == 1:
-            img_data = np.array(imgs[0], dtype='u1')
-            tex = self.ctx.texture((w, h), 4, img_data.tobytes())
-            tex.use(location=0)
-            tex.filter = (moderngl.NEAREST, moderngl.NEAREST)
-            created_textures.append(tex)
-        else:
-            arrs = []
-            for im in imgs:
-                if im.size != (w, h):
-                    im = im.resize((w, h), Image.Resampling.NEAREST)
-                arrs.append(np.array(im, dtype='u1'))
-            array_data = np.stack(arrs, axis=0)
-            tex = self.ctx.texture_array(size=(w, h, len(arrs)), components=4, data=array_data.tobytes())
-            tex.use(location=0)
-            tex.filter = (moderngl.NEAREST, moderngl.NEAREST)
-            created_textures.append(tex)
-
-        unit = 0
-        for uni in shader.uniforms:
-            type_name, var_name, _ = uni
-            if 'sampler' in type_name:
-                tex_idx = min(unit, len(created_textures) - 1)
-                created_textures[tex_idx].use(location=unit)
-                try:
-                    shader.compute_shader[var_name].value = unit
-                except Exception:
-                    pass
-                unit += 1
-
-        shader_entry['_created_textures'] = created_textures
-        return created_textures
-
     def run_compute_shaders(self, tri_count):
         if sys.platform == 'darwin':
             return
 
-        input_tetxure = self.output_tex
-        output_texture = self.alt
-
-        try:
-            self.output_tex.use(location=3)
-        except Exception:
-            pass
-
-        # Ensure we start with a clean output texture for shader chaining.
-        try:
-            output_texture.write(self._output_clear_rgba.tobytes())
-        except Exception:
-            pass
+        last_output_binding = 0
 
         for entry in self.shaders:
             shader = entry.get('shader')
@@ -1146,17 +1144,11 @@ class Renderer3D:
                 if isinstance(inp, tuple) and len(inp) >= 2 and isinstance(inp[0], str):
                     uname = inp[0]
                     getter = inp[1]
+                    val = getter() if callable(getter) else getter
                     try:
-                        val = getter() if callable(getter) else getter
-                        try:
-                            shader.compute_shader[uname].value = val
-                        except Exception:
-                            try:
-                                shader.compute_shader[uname] = val
-                            except Exception:
-                                pass
+                        shader.compute_shader[uname].value = val
                     except Exception:
-                        pass
+                        shader.compute_shader[uname] = val
 
             # Ensure triangle_data buffer is bound
             for b in shader.buffers:
@@ -1168,47 +1160,38 @@ class Renderer3D:
                         shader.buffer_objects[name] = self.tri_buffer
                     except Exception:
                         pass
-
-            # Quick bypass path for debug/testing
-            if entry.get('bypass_shader', False):
+            
+            if last_output_binding == 1:
                 try:
-                    output_texture.copy_from(input_tetxure)
+                    self.output_tex.bind_to_image(1, read=False, write=True)
                 except Exception:
                     pass
-                input_tetxure, output_texture = output_texture, input_tetxure
-                continue
-
-            dest_tex = entry.get('_dest_tex', output_texture)
-            try:
-                dest_tex.bind_to_image(0, read=False, write=True)
-            except Exception:
-                pass
+            else:
+                try:
+                    self.alt.bind_to_image(1, read=False, write=True)
+                except Exception:
+                    pass
 
             # Also make the renderer output available as a sampler for shaders that sample the
             # current framebuffer (bound to texture unit 2).
-            try:
-                input_tetxure.use(location=2)
+            if last_output_binding == 1:
                 try:
-                    shader.compute_shader['srcTex'].value = 2
+                    self.alt.use(location=0)
+                    try:
+                        shader.compute_shader['srcTex'].value = 0
+                    except Exception:
+                        pass
                 except Exception:
                     pass
-            except Exception:
-                pass
-
-            # bypass path (no custom shader run) for artifact isolation
-            if entry.get('bypass_shader', False):
+            else:
                 try:
-                    data = input_tetxure.read()
-                    output_texture.write(data)
+                    self.output_tex.use(location=last_output_binding)
+                    try:
+                        shader.compute_shader['srcTex'].value = last_output_binding
+                    except Exception:
+                        pass
                 except Exception:
                     pass
-                input_tetxure, output_texture = output_texture, input_tetxure
-                continue
-
-            try:
-                self._attach_textures_for_shader(entry)
-            except Exception:
-                pass
 
             try:
                 shader.compute_shader['tri_count'].value = int(tri_count)
@@ -1226,9 +1209,32 @@ class Renderer3D:
                         pass
             except Exception:
                 pass
-            input_tetxure, output_texture = output_texture, input_tetxure
+            
+            if last_output_binding == 1:
+                self.last_present_tex = self.output_tex
+            else:
+                self.last_present_tex = self.alt
 
-        self.output_tex, self.alt = input_tetxure, output_texture
+            last_output_binding = (last_output_binding+1)%2
+
+        return last_output_binding
+
+    def capture_pause_snapshot(self):
+        if self.render_type == renderer_type.RASTERIZE:
+            self.ctx.finish()
+            rw, rh = self.rasterization_size
+            raw_data = self.last_present_tex.read()
+            img_array = np.frombuffer(raw_data, dtype='f4').reshape((rh, rw, 4))
+            img_uint8 = (np.clip(img_array, 0.0, 1.0) * 255).astype('uint8')
+            img_uint8[..., 3] = 255
+            img_uint8 = img_uint8[..., [2, 1, 0, 3]] 
+
+            image_surface = pygame.image.frombuffer(img_uint8.tobytes(), (self.rasterization_size[0], self.rasterization_size[1]), 'RGBA')
+            # Ensure the destination surface matches requested size (fixes resize bug)
+            if self.upscaled_surface.get_size() != (self.width, self.height):
+                self.upscaled_surface = pygame.Surface((self.width, self.height)).convert()
+            pygame.transform.scale(image_surface, (self.width, self.height), self.upscaled_surface)
+            self.pause_img = image_surface
 
     def signed_area_2d(self, p0, p1, p2):
         return ((p1[0] - p0[0]) * (p2[1] - p0[1])) - ((p1[1] - p0[1]) * (p2[0] - p0[0]))
@@ -1245,6 +1251,54 @@ class Renderer3D:
 
     def set_render_type(self, type: renderer_type):
         self.render_type = type
+        if type == renderer_type.RASTERIZE:
+            self.raster_selected = True
+            if self.resizable_window:
+                self.screen = pygame.display.set_mode((self.width, self.height), pygame.OPENGL | pygame.DOUBLEBUF, pygame.RESIZABLE)
+            else:
+                self.screen = pygame.display.set_mode((self.width, self.height), pygame.OPENGL | pygame.DOUBLEBUF)
+            self.ctx = moderngl.create_context()
+            self.disable_finish_call = False # when True, increases performance, but might lead to artifacts!
+            self.tri_buffer = self.ctx.buffer(reserve=tri_dtype.itemsize * 10000)
+
+            rw = self.rasterization_size[0] + (16 - self.rasterization_size[0] % 16) % 16
+            rh = self.rasterization_size[1] + (16 - self.rasterization_size[1] % 16) % 16
+            self.rasterization_size = (rw, rh)
+
+            self.output_tex = self.ctx.texture((rw, rh), 4, dtype='f4')
+            self.alt = self.ctx.texture((rw, rh), 4, dtype='f4')
+            self._output_clear_rgba = np.ones((rh, rw, 4), dtype=np.float32)
+            self.upscaled_surface = pygame.Surface((self.width, self.height)).convert()
+
+            self.raster_half_w = self.rasterization_size[0] // 2
+            self.raster_half_h = self.rasterization_size[1] // 2
+            self.compute_shader_container = CustomShader(compute_shader_for_rasterization, self.ctx)
+            self.compute_shader = self.compute_shader_container.compute_shader
+            self.compute_shader["depthView"].value = False
+            self.compute_shader["heatMap"].value = False
+
+            self.output_tex.filter = (moderngl.NEAREST, moderngl.NEAREST)
+            self.alt.filter = (moderngl.NEAREST, moderngl.NEAREST)
+
+            self.blit_prog = self.ctx.program(
+                vertex_shader=glsl_vert_shader,
+                fragment_shader=glsl_frag_shader
+            )
+            self.blit_prog["tex"].value = 0
+
+            self.blit_vbo = self.ctx.buffer(np.array([
+                -1.0, -1.0,
+                1.0, -1.0,
+                -1.0,  1.0,
+                1.0,  1.0,
+            ], dtype="f4"))
+
+            self.blit_vao = self.ctx.simple_vertex_array(self.blit_prog, self.blit_vbo, "in_pos")
+
+            self.rebuild_textures()
+            self.rebuild_shaders()
+        else:
+            self.screen = pygame.display.set_mode((self.width, self.height))
 
     def set_texture_for_raster(self, img_path):
         if sys.platform != "darwin":
@@ -1265,11 +1319,11 @@ class Renderer3D:
                 components=4,
                 data=array_data.tobytes()
             )
-            self.texture.use(location=0)
+            self.texture.use(location=1)
             self.texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
             self.texture.repeat_x = False
             self.texture.repeat_y = False
-            self.compute_shader["inTex"].value = 0
+            self.compute_shader["inTex"].value = 1
 
             self.textures = {}
             self.textures[img_path] = len(self.texture_layers) - 1
@@ -1312,14 +1366,63 @@ class Renderer3D:
                 components=4,
                 data=array_data.tobytes()
             )
-            self.texture.use(location=0)
+            self.texture.use(location=1)
             self.texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
             self.texture.repeat_x = False
             self.texture.repeat_y = False
-            self.compute_shader["inTex"].value = 0
+            self.compute_shader["inTex"].value = 1
 
             self.textures[img_path] = len(self.texture_layers) - 1
             return len(self.texture_layers) -1
+    
+    def rebuild_shaders(self):
+        for entryI in range(len(self.shaders)):
+            entry = self.shaders[entryI]
+            shader: CustomShader = entry.get('shader')
+            if shader is None:
+                continue
+            # new shader
+            newShader = CustomShader(shader.shader_code, self.ctx)
+            # update the textures for the new context and shader
+            for tex in shader.texture_info:
+                newShader.add_texture(tex[0], tex[1], tex[2])
+            # update the buffers too
+            for b in shader.buffers:
+                buffer_name = b[0]
+                binding = b[4]
+                if buffer_name in shader.buffer_objects:
+                    old_buf = shader.buffer_objects[buffer_name]
+                    
+                    new_buf = self.ctx.buffer(data=old_buf.read())
+                    new_buf.bind_to_storage_buffer(binding)
+                    newShader.buffer_objects[buffer_name] = new_buf
+            self.shaders[entryI]['shader'] = newShader
+
+    def rebuild_textures(self):
+        if self.texture is not None:
+            self.texture.release()
+
+        array_data = np.stack(self.texture_layers, axis=0)
+        h, w = self.texture_layers[0].shape[:2]
+        self.last_size = len(self.texture_layers)
+
+        if self.texture is not None:
+            self.texture.release()
+
+        array_data = np.stack(self.texture_layers, axis=0)  # (layers, h, w, 4)
+        self.texture = self.ctx.texture_array(
+            size=(w, h, self.last_size),
+            components=4,
+            data=array_data.tobytes()
+        )
+        self.texture.use(location=1)
+        self.texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
+        self.texture.repeat_x = False
+        self.texture.repeat_y = False
+        self.compute_shader["inTex"].value = 1
+
+        if self.skybox_texture_path:
+            self.generate_cross_type_cubemap_skybox(20, self.skybox_texture_path)
         
     def smooth_fadeout(self, dist):
         return 0.5*(1+math.cos((1/self.render_distance)*math.pi*min(abs(dist), self.render_distance)))
@@ -1363,11 +1466,11 @@ class Renderer3D:
             img_data = np.array(img, dtype='u1')
 
             self.skybox_texture = self.ctx.texture(img.size, 4, img_data.tobytes())
-            self.skybox_texture.use(location=1)  # bind to texture unit 0
+            self.skybox_texture.use(location=2)  # bind to texture unit 0
             self.skybox_texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
             self.skybox_texture.repeat_x = False
             self.skybox_texture.repeat_y = False
-            self.compute_shader["skyTex"].value = 1 
+            self.compute_shader["skyTex"].value = 2 
 
             self.vertices_faces_list.append([verts.tolist(),faces,uvs,uv_faces, object_type.SKYBOX, 0])
 
@@ -2033,38 +2136,28 @@ class Renderer3D:
             self.alt.write(self._output_clear_rgba.tobytes())
             self.compute_shader.run((self.rasterization_size[0] + 15) // 16, (self.rasterization_size[1] + 15) // 16)
 
-            # Keep readback deterministic unless explicitly disabled.
             if not self.disable_finish_call:
                 try:
                     self.ctx.finish()
                 except Exception:
                     pass
 
-            try:
-                # n is number of triangles processed
-                self.run_compute_shaders(n)
-            except Exception:
-                pass
+            self.last_present_tex = self.output_tex
+            
+            # n is number of triangles processed
+            last_binding = self.run_compute_shaders(n)
 
-            if not self.disable_finish_call:
-                try:
-                    self.ctx.finish()
-                except Exception:
-                    pass
-    
-            rw, rh = self.rasterization_size
-            raw_data = self.output_tex.read()
-            img_array = np.frombuffer(raw_data, dtype='f4').reshape((rh, rw, 4))
-            img_uint8 = (np.clip(img_array, 0.0, 1.0) * 255).astype('uint8')
-            img_uint8[..., 3] = 255
-            img_uint8 = img_uint8[..., [2, 1, 0, 3]] 
+            if last_binding == 0:
+                self.output_tex.use(location=0)
+            else:
+                self.alt.use(location=0)
+            
+            self.ctx.memory_barrier()
 
-            image_surface = pygame.image.frombuffer(img_uint8.tobytes(), (self.rasterization_size[0], self.rasterization_size[1]), 'RGBA')
-            # Ensure the destination surface matches requested size (fixes resize bug)
-            if self.upscaled_surface.get_size() != (self.width, self.height):
-                self.upscaled_surface = pygame.Surface((self.width, self.height)).convert()
-            pygame.transform.scale(image_surface, (self.width, self.height), self.upscaled_surface)
-            self.screen.blit(self.upscaled_surface, (0, 0))
+            self.ctx.screen.use()
+            self.ctx.clear(0.0, 0.0, 0.0, 1.0)
+
+            self.blit_vao.render(moderngl.TRIANGLE_STRIP)
 
 
         elif self.render_type == renderer_type.POLYGON_FILL:
@@ -2477,6 +2570,17 @@ class Renderer3D:
             self.triangle_color_list_2 = []
             self.projections_list = []
             self.projected_vertices_faces_list = []
+
+            if self.show_pause_menu:
+                if self.pause_img is None and self.raster_selected:
+                    self.capture_pause_snapshot()
+                    self.set_render_type(renderer_type.POLYGON_FILL)
+                if self.pause_img is not None and self.raster_selected:
+                    self.screen.blit(self.upscaled_surface, (0, 0))
+            else:
+                if self.raster_selected and self.pause_img is not None:
+                    self.set_render_type(renderer_type.RASTERIZE)
+                self.pause_img = None
             
             for button in self.pause_buttons:
                 button.toggled = False
@@ -2491,7 +2595,7 @@ class Renderer3D:
 
             self.draw_debug_fps()
 
-            pygame.display.update()
+            pygame.display.flip()
 
             for i in ent_indexes:
                 del self.vertices_faces_list[i]
@@ -2619,7 +2723,7 @@ class Renderer3D:
 
         self.draw_debug_fps()
 
-        pygame.display.update()
+        pygame.display.flip()
 
         for i in ent_indexes:
             del self.vertices_faces_list[i]

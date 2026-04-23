@@ -40,7 +40,7 @@ compute_glsl = ShaderTarget(
     name="compute_glsl",
     header="#version 430\nlayout(local_size_x = 16, local_size_y = 16) in;\n",
     globals_block="""
-layout(rgba32f, binding = 0) uniform image2D destTex;
+layout(rgba32f, binding = 1) uniform image2D destTex;
 uniform sampler2D srcTex;
 """,
     main_wrapper=compute_main,
