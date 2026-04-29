@@ -2739,13 +2739,10 @@ class Renderer3D:
             del self.vertices_faces_list[i]
 
 
-# --------------------------
-# macOS raster compatibility
-# --------------------------
 
-_ORIG_RENDER_SHAPE_FROM_OBJ_FORMAT = Renderer3D.render_shape_from_obj_format
+ORIG_RENDER_SHAPE_FROM_OBJ_FORMAT = Renderer3D.render_shape_from_obj_format
 
-def _mac_barycentric(p, a, b, c):
+def mac_barycentric(p, a, b, c):
     v0 = (b[0] - a[0], b[1] - a[1])
     v1 = (c[0] - a[0], c[1] - a[1])
     v2 = (p[0] - a[0], p[1] - a[1])
@@ -2757,7 +2754,7 @@ def _mac_barycentric(p, a, b, c):
     w0 = 1.0 - w1 - w2
     return (w0, w1, w2)
 
-def _mac_sample_texture(self, u, v, is_skybox, texture_index):
+def mac_sample_texture(self, u, v, is_skybox, texture_index):
     if is_skybox:
         tex = getattr(self, "_mac_skybox_texture", None)
     else:
@@ -2779,7 +2776,7 @@ def _mac_sample_texture(self, u, v, is_skybox, texture_index):
         return px.astype(np.float32) / 255.0
     return px
 
-def _mac_set_rasterization_size(self, size: tuple[int, int]):
+def mac_set_rasterization_size(self, size: tuple[int, int]):
     width, height = size
     width = width + (16 - width % 16) % 16
     height = height + (16 - height % 16) % 16
@@ -2790,13 +2787,13 @@ def _mac_set_rasterization_size(self, size: tuple[int, int]):
     self._mac_depth = np.full((height, width), np.inf, dtype=np.float32)
     self._output_clear_rgba = np.ones((height, width, 4), dtype=np.float32)
 
-def _mac_toggle_depth_view(self, b: bool):
+def mac_toggle_depth_view(self, b: bool):
     self.depth_view_enabled = b
 
-def _mac_toggle_heat_map(self, b: bool):
+def mac_toggle_heat_map(self, b: bool):
     self.heat_map_enabled = b
 
-def _mac_set_texture_for_raster(self, img_path):
+def mac_set_texture_for_raster(self, img_path):
     if img_path is None:
         return None
     img = Image.open(img_path).convert("RGBA")
@@ -2807,11 +2804,11 @@ def _mac_set_texture_for_raster(self, img_path):
     self.textures = self._mac_textures
     return 0
 
-def _mac_add_texture_for_raster(self, img_path):
+def mac_add_texture_for_raster(self, img_path):
     if img_path is None:
         return None
     if not getattr(self, "_mac_texture_layers", []):
-        return _mac_set_texture_for_raster(self, img_path)
+        return mac_set_texture_for_raster(self, img_path)
     if img_path in self._mac_textures:
         return self._mac_textures[img_path]
 
@@ -2831,11 +2828,11 @@ def _mac_add_texture_for_raster(self, img_path):
     self.textures = self._mac_textures
     return idx
 
-def _mac_rebuild_textures(self):
+def mac_rebuild_textures(self):
     # CPU textures are stored in-memory; nothing to rebuild.
     return
 
-def _mac_generate_cubemap_skybox(self, radius: int, texture_path, left_uvs, right_uvs, top_uvs, bottom_uvs, forward_uvs, backward_uvs):
+def mac_generate_cubemap_skybox(self, radius: int, texture_path, left_uvs, right_uvs, top_uvs, bottom_uvs, forward_uvs, backward_uvs):
     self.render_distance = radius
     verts = np.array([(-1,-1,-1), (1,-1,-1), (-1,1,-1), (-1,-1,1), (1,1,-1), (-1,1,1), (1,-1,1), (1,1,1)])
     verts = verts * radius
@@ -2864,11 +2861,11 @@ def _mac_generate_cubemap_skybox(self, radius: int, texture_path, left_uvs, righ
     self._mac_skybox_texture = np.array(img, dtype='u1')
     self.vertices_faces_list.append([verts.tolist(), faces, uvs, uv_faces, object_type.SKYBOX, 0])
 
-def _mac_generate_cross_type_cubemap_skybox(self, radius: int, img_path):
+def mac_generate_cross_type_cubemap_skybox(self, radius: int, img_path):
     img_w, img_h = Image.open(img_path).size
     eps_x = 1.0 / img_w
     eps_y = 1.0 / img_h
-    _mac_generate_cubemap_skybox(self, radius, img_path,
+    mac_generate_cubemap_skybox(self, radius, img_path,
         ((0.75-eps_x,   1/3+eps_y), (0.5+eps_x,     1/3+eps_y), (0.75-eps_x,   2/3-eps_y), (0.5+eps_x,     2/3-eps_y)),
         ((0.25-eps_x,   1/3+eps_y), (0+eps_x,       1/3+eps_y), (0.25-eps_x,   2/3-eps_y), (0+eps_x,       2/3-eps_y)),
         ((0.5-eps_x,    1-eps_y),   (0.25+eps_x,    1-eps_y),   (0.5-eps_x,    2/3+eps_y), (0.25+eps_x,    2/3+eps_y)),
@@ -2877,7 +2874,7 @@ def _mac_generate_cross_type_cubemap_skybox(self, radius: int, img_path):
         ((0.25+eps_x,    1/3+eps_y), (0.5-eps_x,    1/3+eps_y), (0.25+eps_x,    2/3-eps_y), (0.5-eps_x,    2/3-eps_y)),
     )
 
-def _mac_capture_pause_snapshot(self):
+def mac_capture_pause_snapshot(self):
     if self._mac_last_surface is None:
         return
     if self.upscaled_surface.get_size() != (self.width, self.height):
@@ -2885,7 +2882,7 @@ def _mac_capture_pause_snapshot(self):
     pygame.transform.scale(self._mac_last_surface, (self.width, self.height), self.upscaled_surface)
     self.pause_img = self._mac_last_surface
 
-def _mac_collect_tris(self, matrix):
+def mac_collect_tris(self, matrix):
     cy, sy = math.cos(self.camera.rotation[1]), math.sin(self.camera.rotation[1])
     cx, sx = math.cos(self.camera.rotation[0]), math.sin(self.camera.rotation[0])
     cz, sz = math.cos(self.camera.rotation[2]), math.sin(self.camera.rotation[2])
@@ -3008,7 +3005,7 @@ def _mac_collect_tris(self, matrix):
 
     return all_tris
 
-def _mac_rasterize_tris(self, all_tris):
+def mac_rasterize_tris(self, all_tris):
     h, w = self.rasterization_size[1], self.rasterization_size[0]
     color = self._mac_output
     depth = self._mac_depth
@@ -3035,7 +3032,7 @@ def _mac_rasterize_tris(self, all_tris):
             py = y + 0.5
             for x in range(minx, maxx + 1):
                 px = x + 0.5
-                bc = _mac_barycentric((px, py), (x0, y0), (x1, y1), (x2, y2))
+                bc = mac_barycentric((px, py), (x0, y0), (x1, y1), (x2, y2))
                 if bc is None:
                     continue
                 a, b, c = bc
@@ -3072,7 +3069,7 @@ def _mac_rasterize_tris(self, all_tris):
                 u = u_num / w_num
                 v = 1.0 - (v_num / w_num)
 
-                texel = _mac_sample_texture(self, u, v, is_skybox, tri_tex_index)
+                texel = mac_sample_texture(self, u, v, is_skybox, tri_tex_index)
                 if texel is None:
                     cc = -pow(2, (-abs(d) * 0.75)) + 1
                     color[y, x, :3] = (cc, cc, cc)
@@ -3089,15 +3086,15 @@ def _mac_rasterize_tris(self, all_tris):
 
     return color
 
-def _mac_render_shape_from_obj_format(self, matrix, texture_p):
+def mac_render_shape_from_obj_format(self, matrix, texture_p):
     if self.render_type != renderer_type.RASTERIZE:
-        return _ORIG_RENDER_SHAPE_FROM_OBJ_FORMAT(self, matrix, texture_p)
+        return ORIG_RENDER_SHAPE_FROM_OBJ_FORMAT(self, matrix, texture_p)
 
-    all_tris = _mac_collect_tris(self, matrix)
+    all_tris = mac_collect_tris(self, matrix)
     if not all_tris:
         return
 
-    color = _mac_rasterize_tris(self, all_tris)
+    color = mac_rasterize_tris(self, all_tris)
     img_uint8 = (np.clip(color, 0.0, 1.0) * 255).astype('uint8')
     surface = pygame.image.frombuffer(img_uint8.tobytes(), (self.rasterization_size[0], self.rasterization_size[1]), 'RGBA')
     if self.upscaled_surface.get_size() != (self.width, self.height):
@@ -3106,7 +3103,7 @@ def _mac_render_shape_from_obj_format(self, matrix, texture_p):
     self.screen.blit(self.upscaled_surface, (0, 0))
     self._mac_last_surface = surface
 
-def _mac_set_render_type(self, type: renderer_type):
+def mac_set_render_type(self, type: renderer_type):
     self.render_type = type
     if type == renderer_type.RASTERIZE:
         self.raster_selected = True
@@ -3119,7 +3116,7 @@ def _mac_set_render_type(self, type: renderer_type):
         self.raster_selected = False
         self.screen = pygame.display.set_mode((self.width, self.height))
 
-def _mac_enable_raster(self):
+def mac_enable_raster(self):
     if getattr(self, "_mac_raster_enabled", False):
         return
 
@@ -3131,30 +3128,30 @@ def _mac_enable_raster(self):
     self._mac_depth = None
     self._mac_last_surface = None
 
-    self.set_render_type = types.MethodType(_mac_set_render_type, self)
-    self.set_rasterization_size = types.MethodType(_mac_set_rasterization_size, self)
-    self.set_texture_for_raster = types.MethodType(_mac_set_texture_for_raster, self)
-    self.add_texture_for_raster = types.MethodType(_mac_add_texture_for_raster, self)
-    self.rebuild_textures = types.MethodType(_mac_rebuild_textures, self)
-    self.generate_cubemap_skybox = types.MethodType(_mac_generate_cubemap_skybox, self)
-    self.generate_cross_type_cubemap_skybox = types.MethodType(_mac_generate_cross_type_cubemap_skybox, self)
-    self.toggle_depth_view = types.MethodType(_mac_toggle_depth_view, self)
-    self.toggle_heat_map = types.MethodType(_mac_toggle_heat_map, self)
-    self.capture_pause_snapshot = types.MethodType(_mac_capture_pause_snapshot, self)
-    self.render_shape_from_obj_format = types.MethodType(_mac_render_shape_from_obj_format, self)
+    self.set_render_type = types.MethodType(mac_set_render_type, self)
+    self.set_rasterization_size = types.MethodType(mac_set_rasterization_size, self)
+    self.set_texture_for_raster = types.MethodType(mac_set_texture_for_raster, self)
+    self.add_texture_for_raster = types.MethodType(mac_add_texture_for_raster, self)
+    self.rebuild_textures = types.MethodType(mac_rebuild_textures, self)
+    self.generate_cubemap_skybox = types.MethodType(mac_generate_cubemap_skybox, self)
+    self.generate_cross_type_cubemap_skybox = types.MethodType(mac_generate_cross_type_cubemap_skybox, self)
+    self.toggle_depth_view = types.MethodType(mac_toggle_depth_view, self)
+    self.toggle_heat_map = types.MethodType(mac_toggle_heat_map, self)
+    self.capture_pause_snapshot = types.MethodType(mac_capture_pause_snapshot, self)
+    self.render_shape_from_obj_format = types.MethodType(mac_render_shape_from_obj_format, self)
 
     if hasattr(self, "raster_button"):
         self.raster_button.function = lambda: self.set_render_type(renderer_type.RASTERIZE)
 
-def _mac_wrap_init():
+def mac_wrap_init():
     orig_init = Renderer3D.__init__
     def _init(self, *args, **kwargs):
         orig_init(self, *args, **kwargs)
         if sys.platform == "darwin":
-            _mac_enable_raster(self)
+            mac_enable_raster(self)
     Renderer3D.__init__ = _init
 
-_mac_wrap_init()
+mac_wrap_init()
         
 
 
